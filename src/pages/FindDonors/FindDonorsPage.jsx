@@ -65,24 +65,30 @@ export default function FindDonorsPage() {
     const queryFilters = {
       ...filters,
       userCity: user?.city || 'Mumbai',
+      userArea: user?.area || null,
     };
 
     donorService
       .getDonors(queryFilters)
       .then((data) => {
         if (isMounted) {
-          setDonors(data);
+          const maxDist = parseFloat(filters.maxDistance);
+          const filtered =
+            !isNaN(maxDist) && maxDist > 0 && Array.isArray(data)
+              ? data.filter((d) => d.distanceKm != null && d.distanceKm <= maxDist)
+              : data;
+          setDonors(filtered || []);
           setLoading(false);
         }
       })
-      .catch((err) => {
+      .catch(() => {
         if (isMounted) setLoading(false);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [filters, user?.city]);
+  }, [filters, user?.city, user?.area]);
 
   const getMapCenter = () => {
     if (filters.city && filters.city !== 'ALL') {

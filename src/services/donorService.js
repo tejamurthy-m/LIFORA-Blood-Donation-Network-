@@ -56,10 +56,12 @@ export const donorService = {
       list = list.filter((d) => d.isAvailable);
     }
 
-    // Max distance radius filter (applied when filtering by a specific city)
-    if (filters.maxDistance && filters.city && filters.city !== 'ALL') {
+    // Max distance radius filter: strictly filter out any donor farther than maxDistance
+    if (filters.maxDistance != null && filters.maxDistance !== '' && filters.maxDistance !== 'ALL') {
       const maxDist = parseFloat(filters.maxDistance);
-      list = list.filter((d) => d.distanceKm <= maxDist);
+      if (!isNaN(maxDist) && maxDist > 0) {
+        list = list.filter((d) => d.distanceKm != null && d.distanceKm <= maxDist);
+      }
     }
 
     // Search query (name, area, city)

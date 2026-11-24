@@ -99,6 +99,7 @@ export const donorService = {
       userLat,
       userLng,
       userCity,
+      userArea,
       compatibleWith, // Optional: if provided, returns all compatible donors for this blood group
     } = filters;
 
@@ -112,7 +113,7 @@ export const donorService = {
         refLat = coords.lat;
         refLng = coords.lng;
       } else if (userCity && userCity !== 'ALL' && userCity.trim() !== '') {
-        const coords = resolveCoordinates(userCity);
+        const coords = resolveCoordinates(userCity, userArea);
         refLat = coords.lat;
         refLng = coords.lng;
       } else {
@@ -174,11 +175,11 @@ export const donorService = {
     // Format and calculate distances
     let list = profiles.map((p) => formatDonorRecord(p, refLat, refLng));
 
-    // Distance radius filter (applies when a specific city is filtered)
-    if (maxDistance && city && city !== 'ALL') {
+    // Distance radius filter: strictly filter out any donor farther than maxDistance
+    if (maxDistance != null && maxDistance !== '' && maxDistance !== 'ALL') {
       const maxDist = parseFloat(maxDistance);
-      if (!isNaN(maxDist)) {
-        list = list.filter((d) => d.distanceKm <= maxDist);
+      if (!isNaN(maxDist) && maxDist > 0) {
+        list = list.filter((d) => d.distanceKm != null && d.distanceKm <= maxDist);
       }
     }
 
