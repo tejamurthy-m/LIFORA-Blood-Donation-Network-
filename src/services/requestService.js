@@ -1,4 +1,4 @@
-import { simulatedDelay } from './api';
+import api, { simulatedDelay } from './api';
 import { INITIAL_REQUESTS } from './mockData';
 
 const REQUESTS_STORAGE_KEY = 'lifora_blood_requests_data';
@@ -23,7 +23,16 @@ export const saveStoredRequests = (requests) => {
 export const requestService = {
   // Query blood requests
   async getRequests(filters = {}) {
-    await simulatedDelay(350);
+    try {
+      const res = await api.get('/requests', { params: filters });
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        return res.data.data;
+      }
+    } catch (e) {
+      console.warn('Backend /requests query failed, using local store:', e.message);
+    }
+
+    await simulatedDelay(250);
     let list = [...getStoredRequests()];
 
     if (filters.status && filters.status !== 'ALL') {
@@ -51,7 +60,16 @@ export const requestService = {
 
   // Get request by ID or Tracking ID
   async getRequestById(id) {
-    await simulatedDelay(250);
+    try {
+      const res = await api.get(`/requests/${id}`);
+      if (res.data?.success && res.data.data) {
+        return res.data.data;
+      }
+    } catch (e) {
+      console.warn(`Backend /requests/${id} query failed, using local store:`, e.message);
+    }
+
+    await simulatedDelay(200);
     const list = getStoredRequests();
     return (
       list.find((r) => r.id === id || r.trackingId?.toUpperCase() === id.toUpperCase()) || null
@@ -60,7 +78,35 @@ export const requestService = {
 
   // Create blood request
   async createRequest(payload) {
-    await simulatedDelay(600);
+    try {
+      const res = await api.post('/requests', {
+        patientName: payload.patientName || 'Confidential Patient',
+        bloodGroup: payload.bloodGroup,
+        unitsRequired: parseInt(payload.unitsRequired, 10) || 1,
+        hospitalName: payload.hospitalName || 'City Hospital',
+        hospitalLocation: payload.hospitalLocation || payload.hospitalName || 'City Center',
+        city: payload.city || 'Mumbai',
+        urgency: payload.urgency || 'Normal',
+        requiredDate: payload.requiredDate || 'Immediate',
+        contactPerson: payload.contactPerson || 'Attending Coordinator',
+        contactPhone: payload.contactPhone || '+91 98200 00000',
+        additionalInstructions: payload.additionalInstructions || 'Standard cross-match requested.',
+        hospitalId: payload.hospitalId,
+      });
+
+      if (res.data?.success && res.data.data) {
+        const created = res.data.data;
+        // Keep in local storage as well for instant UI updates
+        const list = getStoredRequests();
+        list.unshift(created);
+        saveStoredRequests(list);
+        return created;
+      }
+    } catch (e) {
+      console.warn('Backend /requests creation failed, saving to local store:', e.response?.data?.error?.message || e.message);
+    }
+
+    await simulatedDelay(350);
     const list = getStoredRequests();
     const trackingCode = `LIF-${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -117,53 +163,63 @@ export const requestService = {
 
   // Accept a blood request (by a donor)
   async acceptRequest(requestId, donorName = 'Dr. Aryan S.') {
-    await simulatedDelay(350);
-    const list = getStoredRequests();
-    const idx = list.findIndex((r) => r.id === requestId);
-    if (idx !== -1) {
-      const req = list[idx];
-      const accepted = req.acceptedDonors || [];
-      if (!accepted.includes(donorName)) {
-        accepted.push(donorName);
+    try {
+      const res = await api.post(`/requests/${requestId}/accept`);
+      if (res.data?.success) {
+        return res.data;
       }
-      req.acceptedDonors = accepted;
-      req.donorResponses = (req.donorResponses || 0) + 1;
-      req.status = 'In Progress';
-      // Mark timeline step 3 as done
-      if (req.timeline && req.timeline[2]) {
-        req.timeline[2].done = true;
-        req.timeline[2].time = 'Just now';
-        req.timeline[2].detail = `${donorName} responded and is coordinating`;
+    } catch (e) {
+      console.warn('Backend /requests accept failed, using local store:', e.response?.data?.error?.message || e.message);
+      if (e.response?.data?.error?.message) {
+        throw new Error(e.response.data.error.message);
       }
-      list[idx] = req;
-      saveStoredRequests(list);
-      return req;
     }
-    throw new Error('Request not found');
-  },
 
-  // Reject/Decline a blood request
-  async rejectRequest(requestId) {
     await simulatedDelay(250);
-    // Mark as declined for current donor view
-    return { success: true, message: 'Request declined.' };
+    const list = getStoredRequests();
+    let target = null;
+
+    const updated = list.map((r) => {
+      if (r.id === requestId || r.trackingId === requestId) {
+        const donors = r.acceptedDonors || [];
+        if (!donors.includes(donorName)) {
+          donors.push(donorName);
+        }
+        target = {
+          ...r,
+          status: 'In Progress',
+          donorResponses: donors.length,
+          acceptedDonors: donors,
+        };
+        return target;
+      }
+      return r;
+    });
+
+    saveStoredRequests(updated);
+    return target;
   },
 
-  // Update status (e.g. for Admin / Recipient fulfillment)
-  async updateStatus(requestId, status) {
-    await simulatedDelay(300);
-    const list = getStoredRequests();
-    const idx = list.findIndex((r) => r.id === requestId);
-    if (idx !== -1) {
-      list[idx].status = status;
-      if (status === 'Fulfilled' && list[idx].timeline) {
-        list[idx].timeline.forEach((step) => {
-          step.done = true;
-        });
+  // Update request status
+  async updateStatus(requestId, newStatus) {
+    try {
+      const res = await api.patch(`/requests/${requestId}/status`, { status: newStatus });
+      if (res.data?.success && res.data.data) {
+        return res.data.data;
       }
-      saveStoredRequests(list);
-      return list[idx];
+    } catch (e) {
+      console.warn('Backend /requests status update failed, using local store:', e.message);
     }
-    throw new Error('Request not found');
+
+    await simulatedDelay(200);
+    const list = getStoredRequests();
+    const updated = list.map((r) => {
+      if (r.id === requestId || r.trackingId === requestId) {
+        return { ...r, status: newStatus };
+      }
+      return r;
+    });
+    saveStoredRequests(updated);
+    return true;
   },
 };

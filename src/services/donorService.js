@@ -1,4 +1,4 @@
-import { simulatedDelay } from './api';
+import api, { simulatedDelay } from './api';
 import { INITIAL_DONORS } from './mockData';
 
 const DONORS_STORAGE_KEY = 'lifora_donors_data';
@@ -21,9 +21,18 @@ export const saveStoredDonors = (donors) => {
 };
 
 export const donorService = {
-  // Query donors with rich filtering
+  // Query donors with backend API and rich filtering fallback
   async getDonors(filters = {}) {
-    await simulatedDelay(400);
+    try {
+      const res = await api.get('/donors', { params: filters });
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        return res.data.data;
+      }
+    } catch (e) {
+      console.warn('Backend /donors query failed, using local store:', e.message);
+    }
+
+    await simulatedDelay(300);
 
     let list = [...getStoredDonors()];
 
@@ -79,14 +88,36 @@ export const donorService = {
 
   // Get single donor
   async getDonorById(id) {
-    await simulatedDelay(250);
+    try {
+      const res = await api.get(`/donors/${id}`);
+      if (res.data?.success && res.data.data) {
+        return res.data.data;
+      }
+    } catch (e) {
+      console.warn(`Backend /donors/${id} query failed, using local store:`, e.message);
+    }
+
+    await simulatedDelay(200);
     const donors = getStoredDonors();
     return donors.find((d) => d.id === id) || null;
   },
 
   // Toggle donor availability status
   async updateAvailability(donorId, isAvailable) {
-    await simulatedDelay(300);
+    try {
+      const res = await api.patch('/donors/me/availability', { isAvailable });
+      if (res.data?.success) {
+        // Also sync local storage
+        const donors = getStoredDonors();
+        const updated = donors.map((d) => (d.id === donorId ? { ...d, isAvailable } : d));
+        saveStoredDonors(updated);
+        return isAvailable;
+      }
+    } catch (e) {
+      console.warn('Backend /donors/me/availability update failed, using local store:', e.message);
+    }
+
+    await simulatedDelay(250);
     const donors = getStoredDonors();
     const updated = donors.map((d) => {
       if (d.id === donorId) {
@@ -96,17 +127,5 @@ export const donorService = {
     });
     saveStoredDonors(updated);
     return isAvailable;
-  },
-
-  // Send request directly to a donor
-  async sendDirectRequest(donorId, requestData) {
-    await simulatedDelay(400);
-    // Record mock response
-    return {
-      success: true,
-      message: 'Direct request dispatched. The donor has been notified via verified SMS and push notification.',
-      donorId,
-      dispatchedAt: new Date().toISOString(),
-    };
   },
 };

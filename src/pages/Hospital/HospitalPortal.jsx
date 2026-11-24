@@ -60,6 +60,11 @@ export default function HospitalPortal() {
   const handleCreateRequest = async (payload) => {
     const newReq = await hospitalPortalService.createRequest(payload, user);
     setHospitalState(getStoredHospitalData());
+    addToast({
+      title: 'Blood Request Published',
+      message: `${newReq.unitsRequired} unit(s) of ${newReq.bloodGroup} requested. Live broadcast activated.`,
+      type: 'success',
+    });
     return newReq;
   };
 

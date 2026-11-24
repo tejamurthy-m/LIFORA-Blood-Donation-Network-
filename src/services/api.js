@@ -14,7 +14,9 @@ const api = axios.create({
 // Request interceptor to attach JWT token if present
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('lifora_token');
+    const token =
+      localStorage.getItem('lifora_token') ||
+      localStorage.getItem('lifora_auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -28,16 +30,21 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Clear token if expired or unauthorized
-      localStorage.removeItem('lifora_token');
-      localStorage.removeItem('lifora_user');
+      const token =
+        localStorage.getItem('lifora_token') ||
+        localStorage.getItem('lifora_auth_token');
+      if (token && !token.startsWith('jwt_demo_') && !token.startsWith('jwt_mock_')) {
+        localStorage.removeItem('lifora_token');
+        localStorage.removeItem('lifora_auth_token');
+        localStorage.removeItem('lifora_current_user');
+      }
     }
     return Promise.reject(error);
   }
 );
 
 // Simulated delay helper for realistic UX in mock mode
-export const simulatedDelay = (ms = 400) =>
+export const simulatedDelay = (ms = 300) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export default api;

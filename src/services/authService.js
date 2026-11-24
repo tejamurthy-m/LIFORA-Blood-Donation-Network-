@@ -1,4 +1,4 @@
-import { simulatedDelay } from './api';
+import api, { simulatedDelay } from './api';
 export { default as api } from './api';
 import { INITIAL_USERS } from './mockData';
 
@@ -15,7 +15,6 @@ export const getStoredUsers = () => {
   }
   try {
     const parsed = JSON.parse(stored);
-    // Ensure seed users (like hospital accounts) are present
     const existingEmails = new Set(parsed.map((u) => u.email.toLowerCase()));
     let hasNew = false;
     INITIAL_USERS.forEach((initUser) => {
@@ -38,18 +37,50 @@ export const saveStoredUsers = (users) => {
 };
 
 export const authService = {
-  // Login method with mock fallback
+  // Login method with backend API and mock fallback
   async login(email, password) {
-    await simulatedDelay(450);
-
     try {
-      // If backend is active:
-      // const res = await api.post('/auth/login', { email, password });
-      // return res.data;
+      const res = await api.post('/auth/login', {
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      if (res.data?.success && res.data.data?.token) {
+        const { user, token } = res.data.data;
+        const normalizedUser = {
+          id: user.id,
+          name: user.fullName || user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role.toLowerCase(),
+          bloodGroup: user.bloodGroup || 'O+',
+          city: user.city || 'Mumbai',
+          area: user.area || 'Central',
+          isAvailable: user.isAvailable ?? true,
+          totalDonations: user.totalDonations || 0,
+          profileCompletion: user.profileCompletion || 90,
+          badge: user.badge || 'Active Member',
+          staffRole: user.staffRole ? user.staffRole.toLowerCase() : undefined,
+          hospitalId: user.hospitalId,
+          hospitalName: user.hospitalName,
+          hospitalVerificationStatus: user.hospitalVerificationStatus,
+        };
+
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        localStorage.setItem('lifora_token', token);
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(normalizedUser));
+
+        return { user: normalizedUser, token };
+      }
     } catch (e) {
-      console.warn('Backend unavailable, using mock auth:', e);
+      console.warn('Backend authentication failed or unavailable, checking local store:', e.response?.data?.error?.message || e.message);
+      if (e.response?.data?.error?.message) {
+        throw new Error(e.response.data.error.message);
+      }
     }
 
+    // Mock fallback for offline or custom demo testing
+    await simulatedDelay(250);
     const users = getStoredUsers();
     const user = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
 
@@ -57,23 +88,64 @@ export const authService = {
       throw new Error('No account found with this email address.');
     }
 
-    // In demo mode, standard sample password is any valid 6+ chars or matches role
     if (password.length < 6) {
       throw new Error('Password must be at least 6 characters.');
     }
 
-    // Set mock token and session
     const mockToken = `jwt_mock_${user.id}_${Date.now()}`;
     localStorage.setItem(TOKEN_STORAGE_KEY, mockToken);
+    localStorage.setItem('lifora_token', mockToken);
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
 
     return { user, token: mockToken };
   },
 
-  // Registration method
+  // Registration method with backend API and fallback
   async register(registrationData) {
-    await simulatedDelay(500);
+    try {
+      const res = await api.post('/auth/register', {
+        fullName: registrationData.fullName,
+        email: registrationData.email.trim().toLowerCase(),
+        phone: registrationData.phone,
+        password: registrationData.password,
+        role: registrationData.role || 'donor',
+        bloodGroup: registrationData.bloodGroup || 'O+',
+        city: registrationData.city || 'Mumbai',
+        area: registrationData.area || 'Central',
+      });
 
+      if (res.data?.success && res.data.data?.token) {
+        const { user, token } = res.data.data;
+        const normalizedUser = {
+          id: user.id,
+          name: user.fullName || user.name,
+          email: user.email,
+          phone: user.phone,
+          role: user.role.toLowerCase(),
+          bloodGroup: user.bloodGroup || 'O+',
+          city: user.city || 'Mumbai',
+          area: user.area || 'Central',
+          isAvailable: user.isAvailable ?? true,
+          totalDonations: user.totalDonations || 0,
+          profileCompletion: user.profileCompletion || 85,
+          badge: user.badge || 'New Member',
+        };
+
+        localStorage.setItem(TOKEN_STORAGE_KEY, token);
+        localStorage.setItem('lifora_token', token);
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(normalizedUser));
+
+        return { user: normalizedUser, token };
+      }
+    } catch (e) {
+      console.warn('Backend registration failed, using local store:', e.response?.data?.error?.message || e.message);
+      if (e.response?.data?.error?.message) {
+        throw new Error(e.response.data.error.message);
+      }
+    }
+
+    // Mock fallback
+    await simulatedDelay(350);
     const users = getStoredUsers();
     const existing = users.find(
       (u) => u.email.toLowerCase() === registrationData.email.trim().toLowerCase()
@@ -104,6 +176,7 @@ export const authService = {
 
     const mockToken = `jwt_mock_${newUser.id}_${Date.now()}`;
     localStorage.setItem(TOKEN_STORAGE_KEY, mockToken);
+    localStorage.setItem('lifora_token', mockToken);
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(newUser));
 
     return { user: newUser, token: mockToken };
@@ -122,14 +195,26 @@ export const authService = {
 
   // Update profile
   async updateProfile(updates) {
-    await simulatedDelay(350);
     const currentUser = authService.getCurrentUser();
     if (!currentUser) throw new Error('Not authenticated');
 
+    try {
+      if (currentUser.role === 'donor') {
+        const res = await api.put('/donors/me', updates);
+        if (res.data?.success) {
+          const updated = { ...currentUser, ...res.data.data };
+          localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
+          return updated;
+        }
+      }
+    } catch (e) {
+      console.warn('Backend updateProfile fallback:', e.message);
+    }
+
+    await simulatedDelay(250);
     const updated = { ...currentUser, ...updates };
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
 
-    // Also update in all users list
     const users = getStoredUsers();
     const idx = users.findIndex((u) => u.id === currentUser.id);
     if (idx !== -1) {
@@ -143,6 +228,7 @@ export const authService = {
   // Logout
   logout() {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem('lifora_token');
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
   },
 };

@@ -1,4 +1,5 @@
-import { simulatedDelay } from './api';
+import api, { simulatedDelay } from './api';
+import { getStoredRequests, saveStoredRequests } from './requestService';
 
 const HOSPITAL_DATA_KEY = 'lifora_hospital_portal_data';
 
@@ -709,12 +710,32 @@ export const hospitalPortalService = {
 
   // 1. BLOOD REQUEST MANAGEMENT
   async createRequest(payload, staffMember) {
-    await simulatedDelay(300);
     const data = getStoredHospitalData();
     const reqNumber = Math.floor(1000 + Math.random() * 9000);
+    let trackingCode = `LIF-${reqNumber}`;
+
+    // Attempt backend sync
+    try {
+      const res = await api.post('/requests', {
+        bloodGroup: payload.bloodGroup,
+        unitsRequired: parseInt(payload.unitsRequired, 10) || 1,
+        urgency: payload.urgency || 'Normal',
+        requiredDate: payload.requiredDate || new Date().toISOString().split('T')[0],
+        locationDescription: payload.location || 'Central Blood Bank Desk',
+        patientName: payload.patientRef || 'Clinical Requisition',
+        additionalInstructions: payload.additionalInstructions || 'Standard cross-match requested.',
+        hospitalId: staffMember?.hospitalId || data.profile?.id || 'hosp-1',
+      });
+      if (res.data?.success && res.data.data) {
+        trackingCode = res.data.data.trackingId || res.data.data.trackingCode || trackingCode;
+      }
+    } catch (e) {
+      console.warn('Backend /requests creation fallback to local:', e.message);
+    }
+
     const newReq = {
       id: `REQ-${reqNumber}`,
-      trackingId: `LIF-${reqNumber}`,
+      trackingId: trackingCode,
       bloodGroup: payload.bloodGroup,
       unitsRequired: parseInt(payload.unitsRequired, 10) || 1,
       urgency: payload.urgency || 'Normal',
@@ -728,6 +749,29 @@ export const hospitalPortalService = {
     };
 
     data.requests.unshift(newReq);
+
+    // Sync to public/recipient blood requests store as well
+    try {
+      const allRequests = getStoredRequests();
+      allRequests.unshift({
+        ...newReq,
+        hospitalName: data.profile?.name || 'Hospital Transfusion Centre',
+        hospitalLocation: newReq.location,
+        city: data.profile?.city || 'Mumbai',
+        distanceKm: '1.2',
+        donorResponses: 0,
+        acceptedDonors: [],
+        timeline: [
+          { step: 1, title: 'Request Submitted', time: 'Just now', done: true },
+          { step: 2, title: 'Donors Notified', time: 'Active', done: true, detail: 'Hospital requisition broadcasted' },
+          { step: 3, title: 'Donor Responses Received', time: 'Awaiting', done: false, detail: 'Collecting donor confirmations' },
+          { step: 4, title: 'Hospital Coordination', time: 'Pending', done: false, detail: 'Clinical phlebotomy & storage' },
+        ],
+      });
+      saveStoredRequests(allRequests);
+    } catch (syncErr) {
+      console.warn('Sync to requests store error:', syncErr.message);
+    }
 
     // Add notification
     data.notifications.unshift({
