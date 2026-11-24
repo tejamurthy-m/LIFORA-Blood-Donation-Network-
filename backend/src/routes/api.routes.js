@@ -3,6 +3,7 @@ import authRouter from './auth.routes.js';
 import donorRouter from './donor.routes.js';
 import verificationRouter from './verification.routes.js';
 import requestRouter from './request.routes.js';
+import hospitalRouter from './hospital.routes.js';
 
 const router = Router();
 
@@ -36,5 +37,8 @@ router.use('/verifications', verificationRouter);
 
 // Mount Blood Requests module
 router.use('/requests', requestRouter);
+
+// Mount Hospitals & Hospital Portal module
+router.use('/hospitals', hospitalRouter);
 
 export default router;
