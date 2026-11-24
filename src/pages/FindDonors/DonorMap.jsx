@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { MapPin, Phone, ShieldCheck, Heart, Navigation } from 'lucide-react';
 import StatusBadge from '../../components/common/StatusBadge';
@@ -25,29 +25,45 @@ const createCustomMarker = (bloodGroup, isAvailable) => {
   });
 };
 
+// Dynamic viewport controller to keep Leaflet synchronized with donors or center changes
+function MapViewController({ center, zoom, donors }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!map) return;
+
+    const validDonors = donors.filter(
+      (d) => d.lat != null && d.lng != null && !isNaN(d.lat) && !isNaN(d.lng)
+    );
+
+    if (validDonors.length === 1) {
+      map.setView([validDonors[0].lat, validDonors[0].lng], 13, { animate: true });
+    } else if (validDonors.length > 1) {
+      const bounds = L.latLngBounds(validDonors.map((d) => [d.lat, d.lng]));
+      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13, animate: true });
+    } else if (center && center[0] && center[1]) {
+      map.setView(center, zoom || 12, { animate: true });
+    }
+  }, [center, zoom, donors, map]);
+
+  return null;
+}
+
 export default function DonorMap({
   donors = [],
   center = [19.076, 72.8777], // Default Mumbai
   zoom = 12,
   onSelectDonor,
 }) {
-  const [mapCenter, setMapCenter] = useState(center);
-
-  // If donors exist, center on the first donor or average
-  useEffect(() => {
-    if (donors.length > 0 && donors[0].lat && donors[0].lng) {
-      setMapCenter([donors[0].lat, donors[0].lng]);
-    }
-  }, [donors]);
-
   return (
     <div className="w-full h-[520px] rounded-3xl overflow-hidden border border-slate-200/90 shadow-sm relative z-0">
       <MapContainer
-        center={mapCenter}
+        center={center}
         zoom={zoom}
         scrollWheelZoom={false}
         className="w-full h-full"
       >
+        <MapViewController center={center} zoom={zoom} donors={donors} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

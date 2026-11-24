@@ -19,6 +19,16 @@ import { donorService } from '../../services/donorService';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
+const CITY_COORDINATES = {
+  mumbai: [19.076, 72.8777],
+  bangalore: [12.9716, 77.5946],
+  bengaluru: [12.9716, 77.5946],
+  delhi: [28.7041, 77.1025],
+  hyderabad: [17.385, 78.4867],
+  pune: [18.5204, 73.8567],
+  chennai: [13.0827, 80.2707],
+};
+
 export default function FindDonorsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const urlBloodGroup = searchParams.get('bloodGroup') || 'ALL';
@@ -52,8 +62,13 @@ export default function FindDonorsPage() {
     let isMounted = true;
     setLoading(true);
 
+    const queryFilters = {
+      ...filters,
+      userCity: user?.city || 'Mumbai',
+    };
+
     donorService
-      .getDonors(filters)
+      .getDonors(queryFilters)
       .then((data) => {
         if (isMounted) {
           setDonors(data);
@@ -67,7 +82,19 @@ export default function FindDonorsPage() {
     return () => {
       isMounted = false;
     };
-  }, [filters]);
+  }, [filters, user?.city]);
+
+  const getMapCenter = () => {
+    if (filters.city && filters.city !== 'ALL') {
+      const c = filters.city.toLowerCase().trim();
+      if (CITY_COORDINATES[c]) return CITY_COORDINATES[c];
+    }
+    if (user?.city) {
+      const c = user.city.toLowerCase().trim();
+      if (CITY_COORDINATES[c]) return CITY_COORDINATES[c];
+    }
+    return [19.076, 72.8777];
+  };
 
   // Sync URL search param if changed externally
   useEffect(() => {
@@ -197,6 +224,7 @@ export default function FindDonorsPage() {
         <div className="space-y-4">
           <DonorMap
             donors={donors}
+            center={getMapCenter()}
             onSelectDonor={(donor) => setProfileModalDonor(donor)}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">

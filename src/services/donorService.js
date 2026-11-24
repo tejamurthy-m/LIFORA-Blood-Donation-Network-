@@ -25,7 +25,7 @@ export const donorService = {
   async getDonors(filters = {}) {
     try {
       const res = await api.get('/donors', { params: filters });
-      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      if (res.data?.success && Array.isArray(res.data.data)) {
         return res.data.data;
       }
     } catch (e) {
@@ -56,8 +56,8 @@ export const donorService = {
       list = list.filter((d) => d.isAvailable);
     }
 
-    // Max distance radius filter
-    if (filters.maxDistance) {
+    // Max distance radius filter (applied when filtering by a specific city)
+    if (filters.maxDistance && filters.city && filters.city !== 'ALL') {
       const maxDist = parseFloat(filters.maxDistance);
       list = list.filter((d) => d.distanceKm <= maxDist);
     }

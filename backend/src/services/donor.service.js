@@ -1,6 +1,10 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
-import { calculateDistanceKm, CITY_COORDINATES } from '../utils/geo.js';
+import {
+  calculateDistanceKm,
+  CITY_COORDINATES,
+  resolveCoordinates,
+} from '../utils/geo.js';
 import { emitToUser } from '../config/socket.js';
 import {
   BLOOD_GROUP_MAP,
@@ -16,19 +20,25 @@ export const formatDonorRecord = (donorProfile, refLat = null, refLng = null) =>
   const bloodGroupStr =
     REVERSE_BLOOD_GROUP_MAP[donorProfile.bloodGroup] || donorProfile.bloodGroup;
 
-  // Calculate distance from reference coordinates or fallback
-  let distanceKm = 3.5;
+  // Resolve donor coordinates: database lat/lng first, fallback to city/area geocoding
+  const donorCoords =
+    donorProfile.latitude != null && donorProfile.longitude != null
+      ? { lat: donorProfile.latitude, lng: donorProfile.longitude }
+      : resolveCoordinates(donorProfile.user?.city, donorProfile.user?.area);
+
+  // Calculate distance from reference coordinates
+  let distanceKm = null;
   if (
     refLat != null &&
     refLng != null &&
-    donorProfile.latitude != null &&
-    donorProfile.longitude != null
+    donorCoords.lat != null &&
+    donorCoords.lng != null
   ) {
     distanceKm = calculateDistanceKm(
       refLat,
       refLng,
-      donorProfile.latitude,
-      donorProfile.longitude
+      donorCoords.lat,
+      donorCoords.lng
     );
   }
 
@@ -53,9 +63,9 @@ export const formatDonorRecord = (donorProfile, refLat = null, refLng = null) =>
     bloodGroup: bloodGroupStr,
     city: donorProfile.user?.city || 'Mumbai',
     area: donorProfile.user?.area || 'Central Area',
-    lat: donorProfile.latitude || 19.076,
-    lng: donorProfile.longitude || 72.8777,
-    distanceKm: distanceKm != null ? distanceKm : 4.0,
+    lat: donorCoords.lat,
+    lng: donorCoords.lng,
+    distanceKm: distanceKm != null ? distanceKm : 3.5,
     isAvailable: donorProfile.isAvailable,
     emergencyReady: donorProfile.emergencyReady,
     badge: donorProfile.badge || 'Verified Donor',
@@ -88,6 +98,7 @@ export const donorService = {
       sortBy,
       userLat,
       userLng,
+      userCity,
       compatibleWith, // Optional: if provided, returns all compatible donors for this blood group
     } = filters;
 
@@ -95,17 +106,19 @@ export const donorService = {
     let refLat = userLat ? parseFloat(userLat) : null;
     let refLng = userLng ? parseFloat(userLng) : null;
 
-    if (refLat == null && city) {
-      const cityKey = city.toLowerCase().trim();
-      if (CITY_COORDINATES[cityKey]) {
-        refLat = CITY_COORDINATES[cityKey].lat;
-        refLng = CITY_COORDINATES[cityKey].lng;
-      }
-    }
-    // Default fallback to Mumbai center if no reference provided
     if (refLat == null) {
-      refLat = CITY_COORDINATES.mumbai.lat;
-      refLng = CITY_COORDINATES.mumbai.lng;
+      if (city && city !== 'ALL' && city.trim() !== '') {
+        const coords = resolveCoordinates(city);
+        refLat = coords.lat;
+        refLng = coords.lng;
+      } else if (userCity && userCity !== 'ALL' && userCity.trim() !== '') {
+        const coords = resolveCoordinates(userCity);
+        refLat = coords.lat;
+        refLng = coords.lng;
+      } else {
+        refLat = CITY_COORDINATES.mumbai.lat;
+        refLng = CITY_COORDINATES.mumbai.lng;
+      }
     }
 
     // Build Prisma query where clause
@@ -161,8 +174,8 @@ export const donorService = {
     // Format and calculate distances
     let list = profiles.map((p) => formatDonorRecord(p, refLat, refLng));
 
-    // Distance radius filter
-    if (maxDistance) {
+    // Distance radius filter (applies when a specific city is filtered)
+    if (maxDistance && city && city !== 'ALL') {
       const maxDist = parseFloat(maxDistance);
       if (!isNaN(maxDist)) {
         list = list.filter((d) => d.distanceKm <= maxDist);

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
+import { resolveCoordinates } from '../utils/geo.js';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -120,6 +121,7 @@ export const authService = {
           throw new ApiError(400, 'A hospital with this license number is already registered.', 'LICENSE_EXISTS');
         }
 
+        const coords = resolveCoordinates(city, area);
         const newHospital = await tx.hospital.create({
           data: {
             name: fullName.trim(),
@@ -127,6 +129,8 @@ export const authService = {
             registrationNumber: `REG-${Date.now().toString().slice(-6)}`,
             address: area ? `${area}, ${city}` : city,
             city,
+            latitude: coords.lat,
+            longitude: coords.lng,
             contactPhone: phone,
             officialEmail: normalizedEmail,
             verificationStatus: 'PENDING',
@@ -167,10 +171,13 @@ export const authService = {
       // Create attached profile
       if (roleUpper === 'DONOR') {
         const mappedBloodGroup = BLOOD_GROUP_MAP[bloodGroup] || 'O_POSITIVE';
+        const coords = resolveCoordinates(city, area);
         await tx.donorProfile.create({
           data: {
             userId: user.id,
             bloodGroup: mappedBloodGroup,
+            latitude: coords.lat,
+            longitude: coords.lng,
             isAvailable: true,
             emergencyReady: true,
             profileCompletion: 80,
