@@ -1,41 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, Check, Trash2, AlertTriangle, CheckCircle, Clock, X } from 'lucide-react';
-
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 'n1',
-    type: 'emergency',
-    title: 'Urgent O+ Request in Mumbai',
-    message: 'Lilavati Hospital needs 2 units of O+ blood for emergency surgery.',
-    time: '8 mins ago',
-    read: false,
-  },
-  {
-    id: 'n2',
-    type: 'response',
-    title: 'Donor Responded!',
-    message: 'Dr. Aryan S. accepted your request for Lilavati Hospital.',
-    time: '24 mins ago',
-    read: false,
-  },
-  {
-    id: 'n3',
-    type: 'verified',
-    title: 'Profile Badge Upgraded',
-    message: 'You have been awarded the Golden Donor badge for 9 completed donations.',
-    time: '2 days ago',
-    read: true,
-  },
-];
+import { Bell, Check, Trash2, AlertTriangle, CheckCircle, Clock, X, ShieldCheck } from 'lucide-react';
+import { notificationService } from '../../services/notificationService';
 
 export default function NotificationPanel({ isOpen, onClose }) {
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      notificationService.getNotifications().then((res) => {
+        if (res && Array.isArray(res.notifications)) {
+          setNotifications(res.notifications);
+        }
+      });
+    }
+  }, [isOpen]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    await notificationService.markAllAsRead();
   };
 
   const clearAll = () => {
@@ -119,6 +104,11 @@ export default function NotificationPanel({ isOpen, onClose }) {
                       {item.type === 'verified' && (
                         <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
                           <Clock className="w-3.5 h-3.5" />
+                        </div>
+                      )}
+                      {item.type !== 'emergency' && item.type !== 'response' && item.type !== 'verified' && (
+                        <div className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center">
+                          <Bell className="w-3.5 h-3.5" />
                         </div>
                       )}
                     </div>

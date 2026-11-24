@@ -1,6 +1,7 @@
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { calculateDistanceKm, CITY_COORDINATES } from '../utils/geo.js';
+import { emitToUser } from '../config/socket.js';
 import {
   BLOOD_GROUP_MAP,
   REVERSE_BLOOD_GROUP_MAP,
@@ -264,20 +265,35 @@ export const donorService = {
 
     // Create in-app notification for the target donor
     if (donor.userId) {
-      await prisma.notification.create({
+      const createdNotif = await prisma.notification.create({
         data: {
           userId: donor.userId,
           type: 'DONOR_MATCH',
           title: 'Direct Blood Requisition Received',
-          message: `${requestingUser?.fullName || 'A recipient'} has requested an urgent ${donor.bloodGroup} donation from you.`,
+          message: `${requestingUser?.fullName || requestData?.requester || 'A recipient'} has requested an urgent ${donor.bloodGroup} donation from you.`,
           metadata: {
-            requesterId: requestingUser?.id,
-            requesterName: requestingUser?.fullName,
+            requesterId: requestingUser?.id || null,
+            requesterName: requestingUser?.fullName || requestData?.requester || 'Verified Patient',
             bloodGroup: donor.bloodGroup,
             ...requestData,
           },
         },
-      }).catch(() => {});
+      }).catch((e) => {
+        console.warn('Notification create warning:', e.message);
+        return null;
+      });
+
+      if (createdNotif) {
+        emitToUser(donor.userId, 'notification:received', {
+          id: createdNotif.id,
+          type: createdNotif.type,
+          title: createdNotif.title,
+          message: createdNotif.message,
+          metadata: createdNotif.metadata,
+          isRead: false,
+          createdAt: createdNotif.createdAt.toISOString(),
+        });
+      }
     }
 
     return {

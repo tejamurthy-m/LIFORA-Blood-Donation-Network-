@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -24,6 +24,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { donorService } from '../services/donorService';
 import { STAFF_ROLES } from '../services/hospitalPortalService';
+import { notificationService } from '../services/notificationService';
 
 export default function DashboardLayout({ title }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,11 +33,30 @@ export default function DashboardLayout({ title }) {
   const [roleSwitcherOpen, setRoleSwitcherOpen] = useState(false);
   const [staffSwitcherOpen, setStaffSwitcherOpen] = useState(false);
   const [changePassOpen, setChangePassOpen] = useState(false);
+  const [unreadNotifs, setUnreadNotifs] = useState(0);
 
   const { user, role, staffRole, updateProfile, switchDemoRole, switchStaffRole, logout } = useAuth();
   const { addToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUnread = async () => {
+      try {
+        const res = await notificationService.getNotifications();
+        if (isMounted && res) {
+          setUnreadNotifs(res.unreadCount || 0);
+        }
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user]);
 
   const handleToggleAvailability = async () => {
     if (!user) return;
@@ -328,7 +348,9 @@ export default function DashboardLayout({ title }) {
                 aria-label="View notifications"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#C1123F] ring-2 ring-white" />
+                {unreadNotifs > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#C1123F] ring-2 ring-white animate-pulse" />
+                )}
               </button>
               <NotificationPanel isOpen={notifOpen} onClose={() => setNotifOpen(false)} />
             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Bell,
@@ -11,47 +11,29 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
-
-const SEED_NOTIFICATIONS = [
-  {
-    id: 'notif-1',
-    type: 'emergency',
-    title: 'Emergency Blood Requisition: Lilavati Hospital',
-    message: 'Urgent need for 2 units of O+ blood for emergency cardiovascular surgery in Mumbai.',
-    time: '8 minutes ago',
-    read: false,
-    hospital: 'Lilavati Hospital & Research Centre',
-  },
-  {
-    id: 'notif-2',
-    type: 'response',
-    title: 'Donor Confirmed Preliminary Readiness',
-    message: 'Dr. Aryan S. accepted the request for Lilavati Hospital. Hospital blood bank notified.',
-    time: '24 minutes ago',
-    read: false,
-  },
-  {
-    id: 'notif-3',
-    type: 'verified',
-    title: 'Golden Donor Milestone Reached!',
-    message: 'Congratulations! You have completed 9 successful donations and earned the Golden Donor badge.',
-    time: 'Yesterday at 4:15 PM',
-    read: true,
-  },
-  {
-    id: 'notif-4',
-    type: 'system',
-    title: 'Quarterly Blood Inventory Advisory',
-    message: 'Regional blood banks report lower reserves for O- and B- blood groups this weekend.',
-    time: '2 days ago',
-    read: true,
-  },
-];
+import { notificationService } from '../../services/notificationService';
 
 export default function UserNotificationsView() {
-  const [items, setItems] = useState(SEED_NOTIFICATIONS);
+  const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread' | 'emergency'
   const { addToast } = useToast();
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await notificationService.getNotifications();
+      if (res && Array.isArray(res.notifications)) {
+        setItems(res.notifications);
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   const filtered = items.filter((item) => {
     if (filter === 'unread') return !item.read;
@@ -59,8 +41,9 @@ export default function UserNotificationsView() {
     return true;
   });
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
     setItems((prev) => prev.map((item) => ({ ...item, read: true })));
+    await notificationService.markAllAsRead();
     addToast({ title: 'Marked All as Read', message: 'All notifications cleared.', type: 'info' });
   };
 
@@ -69,14 +52,16 @@ export default function UserNotificationsView() {
     addToast({ title: 'Cleared', message: 'Notification queue cleared.', type: 'info' });
   };
 
-  const toggleItemRead = (id) => {
+  const toggleItemRead = async (id) => {
     setItems((prev) =>
       prev.map((item) => (item.id === id ? { ...item, read: !item.read } : item))
     );
+    await notificationService.markAsRead(id);
   };
 
-  const deleteItem = (id) => {
+  const deleteItem = async (id) => {
     setItems((prev) => prev.filter((item) => item.id !== id));
+    await notificationService.deleteNotification(id);
   };
 
   return (
@@ -193,9 +178,9 @@ export default function UserNotificationsView() {
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                   )}
-                  {item.type === 'system' && (
+                  {item.type !== 'emergency' && item.type !== 'response' && item.type !== 'verified' && (
                     <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
-                      <Clock className="w-5 h-5" />
+                      <Bell className="w-5 h-5" />
                     </div>
                   )}
                 </div>
