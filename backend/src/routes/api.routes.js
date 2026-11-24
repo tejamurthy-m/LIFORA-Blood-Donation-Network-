@@ -4,6 +4,7 @@ import donorRouter from './donor.routes.js';
 import verificationRouter from './verification.routes.js';
 import requestRouter from './request.routes.js';
 import hospitalRouter from './hospital.routes.js';
+import notificationRouter from './notification.routes.js';
 
 const router = Router();
 
@@ -40,5 +41,8 @@ router.use('/requests', requestRouter);
 
 // Mount Hospitals & Hospital Portal module
 router.use('/hospitals', hospitalRouter);
+
+// Mount Notifications module
+router.use('/notifications', notificationRouter);
 
 export default router;

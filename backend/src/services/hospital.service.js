@@ -5,6 +5,7 @@ import {
   BLOOD_GROUP_MAP,
   REVERSE_BLOOD_GROUP_MAP,
 } from '../validators/auth.validator.js';
+import { emitToHospital, emitToRequest, emitToUser } from '../config/socket.js';
 
 export const STAFF_ROLE_LABELS = {
   HOSPITAL_ADMIN: 'Hospital Admin',
@@ -355,6 +356,21 @@ export const hospitalService = {
       },
     });
 
+    emitToHospital(hospitalId, 'arrival:status_changed', {
+      arrivalId,
+      status: mapped,
+      donorName: arrival.donor?.user?.fullName,
+      assignedStaff: staffUser.fullName,
+    });
+
+    if (arrival.donor?.userId) {
+      emitToUser(arrival.donor.userId, 'arrival:status_changed', {
+        arrivalId,
+        status: mapped,
+        assignedStaff: staffUser.fullName,
+      });
+    }
+
     return updated;
   },
 
@@ -426,6 +442,13 @@ export const hospitalService = {
       });
 
       return record;
+    });
+
+    emitToHospital(hospitalId, 'donation:recorded', {
+      donationId: result.id,
+      bloodGroup,
+      unitsDonated: result.unitsDonated,
+      screeningPassed: result.screeningPassed,
     });
 
     return result;

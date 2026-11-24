@@ -2,6 +2,8 @@ import { prisma } from '../config/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { uploadMedicalDocument, createSignedReportUrl } from '../config/storage.js';
 import { REVERSE_BLOOD_GROUP_MAP } from '../validators/auth.validator.js';
+import { emitToUser } from '../config/socket.js';
+import { emailService } from './email.service.js';
 
 // Status mapper between DB enums and frontend states
 export const DB_TO_FRONTEND_STATUS = {
@@ -257,6 +259,24 @@ export const verificationService = {
         },
       },
     });
+
+    // Real-time Socket.IO notification to donor
+    emitToUser(doc.userId, 'verification:status_changed', {
+      documentId,
+      status: newStatus,
+      title: notifyTitle,
+      message: notifyMessage,
+    });
+
+    // Email notification to donor
+    if (doc.user?.email) {
+      emailService.sendReportVerificationResult({
+        donorEmail: doc.user.email,
+        donorName: doc.user.fullName,
+        status: newStatus,
+        rejectionReason: notes || clarificationMessage,
+      }).catch(() => {});
+    }
 
     // Record audit log
     await prisma.auditLog.create({

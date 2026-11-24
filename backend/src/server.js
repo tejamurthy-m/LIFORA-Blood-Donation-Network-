@@ -2,9 +2,11 @@ import http from 'http';
 import { createApp } from './app.js';
 import { config } from './config/environment.js';
 import { logger } from './config/logger.js';
+import { initSocketServer } from './config/socket.js';
 
 const app = createApp();
 const server = http.createServer(app);
+const io = initSocketServer(server);
 
 const PORT = config.port;
 
@@ -38,4 +40,4 @@ const shutdown = (signal) => {
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
 
-export { app, server };
+export { app, server, io };

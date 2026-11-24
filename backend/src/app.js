@@ -60,8 +60,9 @@ export const createApp = () => {
   // Health check endpoint
   app.use('/api/health', healthRouter);
 
-  // API v1 root router
+  // API v1 root router (available at both /api/v1 and /api)
   app.use('/api/v1', apiV1Router);
+  app.use('/api', apiV1Router);
 
   // Catch-all 404 Handler
   app.use(notFoundHandler);

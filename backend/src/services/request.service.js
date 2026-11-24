@@ -5,6 +5,8 @@ import {
   REVERSE_BLOOD_GROUP_MAP,
 } from '../validators/auth.validator.js';
 import { calculateDistanceKm, CITY_COORDINATES } from '../utils/geo.js';
+import { broadcastBloodAlert, emitToRequest, emitToUser, emitToHospital } from '../config/socket.js';
+import { emailService } from './email.service.js';
 
 // Status mappings between DB and frontend
 export const DB_REQUEST_STATUS_MAP = {
@@ -322,7 +324,68 @@ export const requestService = {
       },
     });
 
-    return formatRequestResponse(newRequest);
+    const formatted = formatRequestResponse(newRequest);
+
+    // Broadcast across Socket.IO network
+    broadcastBloodAlert(formatted);
+    if (newRequest.hospitalId) {
+      emitToHospital(newRequest.hospitalId, 'blood_request:created', formatted);
+    }
+
+    // In background: notify matching available donors in the same city
+    (async () => {
+      try {
+        const matchingDonors = await prisma.donorProfile.findMany({
+          where: {
+            bloodGroup: mappedBloodGroup,
+            isAvailable: true,
+            user: { city: { equals: newRequest.city, mode: 'insensitive' } },
+          },
+          include: { user: true },
+          take: 10,
+        });
+
+        for (const donor of matchingDonors) {
+          if (donor.userId !== user?.id) {
+            await prisma.notification.create({
+              data: {
+                userId: donor.userId,
+                type: 'EMERGENCY_REQUEST',
+                title: `Urgent Requisition: ${bloodGroup} Needed`,
+                message: `Patient requires ${newRequest.unitsRequired} unit(s) of ${bloodGroup} at ${newRequest.locationDescription}. Tracking: ${newRequest.trackingCode}`,
+                metadata: {
+                  requestId: newRequest.id,
+                  trackingCode: newRequest.trackingCode,
+                  bloodGroup,
+                },
+              },
+            }).catch(() => {});
+
+            emitToUser(donor.userId, 'notification:received', {
+              title: `Urgent Requisition: ${bloodGroup} Needed`,
+              message: `Patient requires ${newRequest.unitsRequired} unit(s) of ${bloodGroup}`,
+              trackingCode: newRequest.trackingCode,
+            });
+
+            if (mappedUrgency === 'EMERGENCY' && donor.user.email) {
+              emailService.sendEmergencyBloodAlert({
+                donorEmail: donor.user.email,
+                donorName: donor.user.fullName,
+                bloodGroup,
+                unitsRequired: newRequest.unitsRequired,
+                urgency: newRequest.urgency,
+                location: newRequest.locationDescription,
+                trackingCode: newRequest.trackingCode,
+              }).catch(() => {});
+            }
+          }
+        }
+      } catch (err) {
+        // Silently capture broadcast errors
+      }
+    })();
+
+    return formatted;
   },
 
   // Donor accepts blood request
@@ -408,6 +471,30 @@ export const requestService = {
           },
         },
       });
+
+      emitToUser(req.requesterId, 'notification:received', {
+        title: 'Donor En Route! 🩸',
+        message: `${donorUser.fullName || 'A verified donor'} has accepted your blood request (${req.trackingCode})`,
+        trackingCode: req.trackingCode,
+      });
+    }
+
+    // Real-time broadcast to all viewers of this request tracking code
+    emitToRequest(req.trackingCode, 'request:donor_accepted', {
+      requestId: req.id,
+      trackingCode: req.trackingCode,
+      donorName: donorUser.fullName,
+      eta: '20 mins',
+      status: 'In Progress',
+    });
+
+    if (req.hospitalId) {
+      emitToHospital(req.hospitalId, 'donor:arrival_expected', {
+        requestId: req.id,
+        trackingCode: req.trackingCode,
+        donorName: donorUser.fullName,
+        eta: '20 mins',
+      });
     }
 
     return {
@@ -450,6 +537,8 @@ export const requestService = {
       },
     });
 
-    return formatRequestResponse(updated);
+    const formatted = formatRequestResponse(updated);
+    emitToRequest(updated.trackingCode, 'request:status_changed', formatted);
+    return formatted;
   },
 };
