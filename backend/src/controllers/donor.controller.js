@@ -30,6 +30,21 @@ export const donorController = {
     }
   },
 
+  // PUT /api/v1/donors/me
+  async updateProfile(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const updated = await donorService.updateProfile(userId, req.body);
+      res.status(200).json({
+        success: true,
+        message: 'Donor profile updated successfully.',
+        data: updated,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // PATCH /api/v1/donors/:id/availability
   async updateAvailability(req, res, next) {
     try {

@@ -136,7 +136,8 @@ export const donorService = {
         hospitalName: payload.hospitalName || 'City Hospital',
         unitsNeeded: payload.unitsNeeded || 1,
         isEmergency: Boolean(payload.isEmergency),
-        patientName: payload.requester || 'Verified Patient',
+        patientName: payload.patientName || payload.requester || 'Verified Patient',
+        requester: payload.requester || payload.patientName || 'Verified Patient',
       });
       if (res.data?.success) {
         return res.data.data;

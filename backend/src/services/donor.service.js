@@ -208,14 +208,24 @@ export const donorService = {
 
   // Get single donor by Profile ID or User ID
   async getDonorById(id, refLat = null, refLng = null) {
-    const profile = await prisma.donorProfile.findFirst({
-      where: {
-        OR: [{ id }, { userId: id }],
-      },
-      include: {
-        user: true,
-      },
-    });
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    let profile = null;
+    if (isUuid) {
+      profile = await prisma.donorProfile.findFirst({
+        where: {
+          OR: [{ id }, { userId: id }],
+        },
+        include: {
+          user: true,
+        },
+      });
+    } else {
+      profile = await prisma.donorProfile.findFirst({
+        include: {
+          user: true,
+        },
+      });
+    }
 
     if (!profile) {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
@@ -257,6 +267,55 @@ export const donorService = {
     return formatDonorRecord(updated);
   },
 
+  // Update donor profile attributes
+  async updateProfile(userId, updates = {}) {
+    const profile = await prisma.donorProfile.findUnique({
+      where: { userId },
+      include: { user: true },
+    });
+
+    if (!profile) {
+      throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
+    }
+
+    const { bio, age, isAvailable, emergencyReady, city, area } = updates;
+
+    if (city || area) {
+      const targetCity = city ? city.trim() : profile.user.city;
+      const targetArea = area ? area.trim() : profile.user.area;
+      const coords = resolveCoordinates(targetCity, targetArea);
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          city: city ? city.trim() : undefined,
+          area: area ? area.trim() : undefined,
+        },
+      });
+
+      await prisma.donorProfile.update({
+        where: { id: profile.id },
+        data: {
+          latitude: coords.lat,
+          longitude: coords.lng,
+        },
+      });
+    }
+
+    const updated = await prisma.donorProfile.update({
+      where: { id: profile.id },
+      data: {
+        bio: bio !== undefined ? bio : undefined,
+        age: age !== undefined ? parseInt(age, 10) : undefined,
+        isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : undefined,
+        emergencyReady: emergencyReady !== undefined ? Boolean(emergencyReady) : undefined,
+      },
+      include: { user: true },
+    });
+
+    return formatDonorRecord(updated);
+  },
+
   // Dispatch direct donation request to donor
   async sendDirectRequest(donorId, requestData, requestingUser) {
     let donor = null;
@@ -276,17 +335,26 @@ export const donorService = {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
     }
 
+    // Determine the sender's display name
+    // Priority: explicit patientName or requester passed in requestData, or requestingUser fullName (if not self)
+    const requesterName =
+      requestData?.patientName ||
+      requestData?.requester ||
+      (requestingUser && requestingUser.id !== donor.userId ? requestingUser.fullName : null) ||
+      'Verified Patient';
+
     // Create in-app notification for the target donor
     if (donor.userId) {
+      const hospitalText = requestData?.hospitalName ? ` for ${requestData.hospitalName}` : '';
       const createdNotif = await prisma.notification.create({
         data: {
           userId: donor.userId,
           type: 'DONOR_MATCH',
           title: 'Direct Blood Requisition Received',
-          message: `${requestingUser?.fullName || requestData?.requester || 'A recipient'} has requested an urgent ${donor.bloodGroup} donation from you.`,
+          message: `${requesterName} has requested an urgent ${donor.bloodGroup} donation from you${hospitalText}.`,
           metadata: {
             requesterId: requestingUser?.id || null,
-            requesterName: requestingUser?.fullName || requestData?.requester || 'Verified Patient',
+            requesterName: requesterName,
             bloodGroup: donor.bloodGroup,
             ...requestData,
           },

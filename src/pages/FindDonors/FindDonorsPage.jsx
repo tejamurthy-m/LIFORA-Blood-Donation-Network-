@@ -126,7 +126,8 @@ export default function FindDonorsPage() {
         hospitalName,
         unitsNeeded,
         isEmergency,
-        requester: user?.name || 'Verified Patient',
+        requester: user?.name || user?.fullName || 'Verified Patient',
+        patientName: user?.name || user?.fullName || 'Verified Patient',
       });
 
       addToast({
@@ -139,7 +140,7 @@ export default function FindDonorsPage() {
     } catch (err) {
       addToast({
         title: 'Request Failed',
-        message: 'Could not deliver request.',
+        message: err.message || 'Could not deliver request.',
         type: 'error',
       });
     } finally {

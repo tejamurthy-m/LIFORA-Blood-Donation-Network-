@@ -1,6 +1,17 @@
 import api, { simulatedDelay } from './api';
 
-const NOTIFICATIONS_STORAGE_KEY = 'lifora_user_notifications_cache';
+const getCurrentUserId = () => {
+  try {
+    const raw = localStorage.getItem('lifora_current_user');
+    if (!raw) return 'guest';
+    const user = JSON.parse(raw);
+    return user?.id || user?.email || 'guest';
+  } catch {
+    return 'guest';
+  }
+};
+
+const getCacheKey = () => `lifora_notifications_${getCurrentUserId()}`;
 
 const formatTimeAgo = (dateInput) => {
   if (!dateInput) return 'Just now';
@@ -27,6 +38,7 @@ const mapBackendType = (type = '') => {
 export const notificationService = {
   // Query notifications for current user from backend with local fallback
   async getNotifications(options = {}) {
+    const cacheKey = getCacheKey();
     try {
       const res = await api.get('/notifications', { params: options });
       if (res.data?.success && Array.isArray(res.data.data)) {
@@ -43,7 +55,7 @@ export const notificationService = {
           hospital: n.metadata?.hospitalName || n.metadata?.hospital || 'Hospital Care Desk',
         }));
 
-        localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(formatted));
+        localStorage.setItem(cacheKey, JSON.stringify(formatted));
         return {
           unreadCount: res.data.unreadCount ?? formatted.filter((n) => !n.read).length,
           notifications: formatted,
@@ -54,7 +66,7 @@ export const notificationService = {
     }
 
     await simulatedDelay(200);
-    const cached = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    const cached = localStorage.getItem(cacheKey);
     const list = cached ? JSON.parse(cached) : [];
     return {
       unreadCount: list.filter((n) => !n.read).length,
@@ -64,42 +76,45 @@ export const notificationService = {
 
   // Mark single notification as read
   async markAsRead(id) {
+    const cacheKey = getCacheKey();
     try {
       await api.patch(`/notifications/${id}/read`);
     } catch (e) {
       console.warn(`Backend markAsRead for ${id} failed:`, e.message);
     }
 
-    const cached = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const list = JSON.parse(cached).map((n) => (n.id === id ? { ...n, read: true } : n));
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+      localStorage.setItem(cacheKey, JSON.stringify(list));
     }
     return true;
   },
 
   // Mark all notifications as read
   async markAllAsRead() {
+    const cacheKey = getCacheKey();
     try {
       await api.patch('/notifications/read-all');
     } catch (e) {
       console.warn('Backend markAllAsRead failed:', e.message);
     }
 
-    const cached = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const list = JSON.parse(cached).map((n) => ({ ...n, read: true }));
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+      localStorage.setItem(cacheKey, JSON.stringify(list));
     }
     return true;
   },
 
   // Delete notification
   async deleteNotification(id) {
-    const cached = localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+    const cacheKey = getCacheKey();
+    const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const list = JSON.parse(cached).filter((n) => n.id !== id);
-      localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(list));
+      localStorage.setItem(cacheKey, JSON.stringify(list));
     }
     return true;
   },

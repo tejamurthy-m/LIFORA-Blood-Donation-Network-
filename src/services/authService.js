@@ -230,5 +230,13 @@ export const authService = {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
     localStorage.removeItem('lifora_token');
     localStorage.removeItem(CURRENT_USER_STORAGE_KEY);
+    localStorage.removeItem('lifora_user_notifications_cache');
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('lifora_notifications_'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // Storage access protected or not available
+    }
   },
 };

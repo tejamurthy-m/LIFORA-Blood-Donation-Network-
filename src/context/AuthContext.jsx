@@ -76,8 +76,10 @@ export const AuthProvider = ({ children }) => {
       targetUser = users.find((u) => u.staffRole === targetRole);
     }
     if (targetUser) {
+      const demoToken = `jwt_demo_${targetUser.role || 'user'}_${targetUser.id}`;
       localStorage.setItem('lifora_current_user', JSON.stringify(targetUser));
-      localStorage.setItem('lifora_auth_token', `jwt_demo_${targetUser.id}`);
+      localStorage.setItem('lifora_auth_token', demoToken);
+      localStorage.setItem('lifora_token', demoToken);
       setUser(targetUser);
       return targetUser;
     }
@@ -89,13 +91,18 @@ export const AuthProvider = ({ children }) => {
     if (!user || user.role !== 'hospital') return;
     const users = getStoredUsers();
     const matchingStaffUser = users.find((u) => u.role === 'hospital' && u.staffRole === staffRole);
+    const demoToken = `jwt_demo_hospital_${staffRole}`;
     if (matchingStaffUser) {
       localStorage.setItem('lifora_current_user', JSON.stringify(matchingStaffUser));
+      localStorage.setItem('lifora_auth_token', demoToken);
+      localStorage.setItem('lifora_token', demoToken);
       setUser(matchingStaffUser);
       return matchingStaffUser;
     } else {
       const updatedUser = { ...user, staffRole };
       localStorage.setItem('lifora_current_user', JSON.stringify(updatedUser));
+      localStorage.setItem('lifora_auth_token', demoToken);
+      localStorage.setItem('lifora_token', demoToken);
       setUser(updatedUser);
       return updatedUser;
     }

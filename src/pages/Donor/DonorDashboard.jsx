@@ -96,6 +96,15 @@ export default function DonorDashboard() {
         requestId,
         donorName
       );
+      // Persist acceptance in localStorage
+      try {
+        const key = `lifora_accepted_requests_${user?.id || 'guest'}`;
+        const prevAccepted = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!prevAccepted.includes(requestId)) {
+          localStorage.setItem(key, JSON.stringify([...prevAccepted, requestId]));
+        }
+      } catch {}
+
       setRequests((prev) =>
         prev.map((r) =>
           r.id === requestId || r.trackingId === requestId
@@ -109,6 +118,15 @@ export default function DonorDashboard() {
         type: 'success',
       });
     } catch (err) {
+      // Even if network fails, persist locally
+      try {
+        const key = `lifora_accepted_requests_${user?.id || 'guest'}`;
+        const prevAccepted = JSON.parse(localStorage.getItem(key) || '[]');
+        if (!prevAccepted.includes(requestId)) {
+          localStorage.setItem(key, JSON.stringify([...prevAccepted, requestId]));
+        }
+      } catch {}
+
       setRequests((prev) =>
         prev.map((r) =>
           r.id === requestId || r.trackingId === requestId
@@ -130,6 +148,15 @@ export default function DonorDashboard() {
     } catch {
       // Graceful local dismiss
     }
+    // Persist rejection in localStorage
+    try {
+      const key = `lifora_dismissed_requests_${user?.id || 'guest'}`;
+      const prevDismissed = JSON.parse(localStorage.getItem(key) || '[]');
+      if (!prevDismissed.includes(requestId)) {
+        localStorage.setItem(key, JSON.stringify([...prevDismissed, requestId]));
+      }
+    } catch {}
+
     setRequests((prev) =>
       prev.filter((r) => r.id !== requestId && r.trackingId !== requestId)
     );
@@ -144,6 +171,13 @@ export default function DonorDashboard() {
 
   const isAcceptedByMe = (r) => {
     if (r.acceptedByMe) return true;
+    try {
+      const key = `lifora_accepted_requests_${user?.id || 'guest'}`;
+      const stored = JSON.parse(localStorage.getItem(key) || '[]');
+      if (Array.isArray(stored) && (stored.includes(r.id) || stored.includes(r.trackingId))) {
+        return true;
+      }
+    } catch {}
     if (Array.isArray(r.acceptedDonors)) {
       return r.acceptedDonors.some((d) => {
         if (typeof d === 'string') {
@@ -165,8 +199,18 @@ export default function DonorDashboard() {
     return false;
   };
 
+  const isDismissedByMe = (r) => {
+    try {
+      const key = `lifora_dismissed_requests_${user?.id || 'guest'}`;
+      const stored = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(stored) && (stored.includes(r.id) || stored.includes(r.trackingId));
+    } catch {
+      return false;
+    }
+  };
+
   const availableRequests = requests.filter(
-    (r) => !isAcceptedByMe(r) && r.status !== 'Fulfilled' && r.status !== 'Closed'
+    (r) => !isAcceptedByMe(r) && !isDismissedByMe(r) && r.status !== 'Fulfilled' && r.status !== 'Closed'
   );
 
   const pendingRequestsCount = availableRequests.length;

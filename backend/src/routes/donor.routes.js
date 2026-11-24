@@ -9,6 +9,11 @@ router.get('/', donorController.getDonors);
 router.get('/:id', donorController.getDonorById);
 
 // Protected donor management endpoints
+router.put('/me', authenticate, donorController.updateProfile);
+router.patch('/me/availability', authenticate, (req, res, next) => {
+  req.params.id = req.user.id;
+  return donorController.updateAvailability(req, res, next);
+});
 router.patch('/:id/availability', authenticate, donorController.updateAvailability);
 router.post('/:id/direct-request', optionalAuthenticate, donorController.sendDirectRequest);
 

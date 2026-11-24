@@ -156,6 +156,10 @@ export const formatRequestResponse = (req, refLat = null, refLng = null) => {
   };
 };
 
+const isUuid = (val) =>
+  typeof val === 'string' &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 export const requestService = {
   // Query blood requests with filters
   async getRequests(filters = {}) {
@@ -238,10 +242,12 @@ export const requestService = {
 
   // Get request by UUID or Tracking Code (e.g. LIF-8831)
   async getRequestById(idOrCode, refLat = null, refLng = null) {
+    const where = isUuid(idOrCode)
+      ? { OR: [{ id: idOrCode }, { trackingCode: idOrCode.toUpperCase() }] }
+      : { trackingCode: idOrCode.toUpperCase() };
+
     const req = await prisma.bloodRequest.findFirst({
-      where: {
-        OR: [{ id: idOrCode }, { trackingCode: idOrCode.toUpperCase() }],
-      },
+      where,
       include: {
         hospital: true,
         responses: {
@@ -390,10 +396,12 @@ export const requestService = {
 
   // Donor accepts blood request
   async acceptRequest(requestIdOrCode, donorUser) {
+    const where = isUuid(requestIdOrCode)
+      ? { OR: [{ id: requestIdOrCode }, { trackingCode: requestIdOrCode.toUpperCase() }] }
+      : { trackingCode: requestIdOrCode.toUpperCase() };
+
     const req = await prisma.bloodRequest.findFirst({
-      where: {
-        OR: [{ id: requestIdOrCode }, { trackingCode: requestIdOrCode.toUpperCase() }],
-      },
+      where,
       include: {
         hospital: true,
         responses: true,
@@ -509,8 +517,12 @@ export const requestService = {
 
   // Update request status (hospital staff or requester)
   async updateStatus(requestId, status, user) {
-    const req = await prisma.bloodRequest.findUnique({
-      where: { id: requestId },
+    const where = isUuid(requestId)
+      ? { OR: [{ id: requestId }, { trackingCode: requestId.toUpperCase() }] }
+      : { trackingCode: requestId.toUpperCase() };
+
+    const req = await prisma.bloodRequest.findFirst({
+      where,
     });
 
     if (!req) {
@@ -523,7 +535,7 @@ export const requestService = {
     }
 
     const updated = await prisma.bloodRequest.update({
-      where: { id: requestId },
+      where: { id: req.id },
       data: { status: mappedStatus },
       include: {
         hospital: true,
