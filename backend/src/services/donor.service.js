@@ -31,11 +31,13 @@ export const formatDonorRecord = (donorProfile, refLat = null, refLng = null) =>
     );
   }
 
-  // Abbreviated first name + initial
+  // Abbreviated first name + initial (preserving titles like Dr.)
   const fullName = donorProfile.user?.fullName || 'Anonymous Donor';
   const nameParts = fullName.split(' ');
   const displayName =
-    nameParts.length > 1
+    nameParts.length > 2 && nameParts[0].includes('.')
+      ? `${nameParts[0]} ${nameParts[1]} ${nameParts[nameParts.length - 1][0]}.`
+      : nameParts.length > 1
       ? `${nameParts[0]} ${nameParts[nameParts.length - 1][0]}.`
       : fullName;
 
