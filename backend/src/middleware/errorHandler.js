@@ -2,9 +2,10 @@ import { logger } from '../config/logger.js';
 import { config } from '../config/environment.js';
 
 export class ApiError extends Error {
-  constructor(statusCode, message, details = null) {
+  constructor(statusCode, message, code = 'API_ERROR', details = null) {
     super(message);
     this.statusCode = statusCode;
+    this.code = code;
     this.details = details;
     this.isOperational = true;
     Error.captureStackTrace(this, this.constructor);

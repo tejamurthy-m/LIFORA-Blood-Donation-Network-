@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import authRouter from './auth.routes.js';
 
 const router = Router();
 
@@ -20,5 +21,8 @@ router.get('/', (req, res) => {
     documentation: 'Refer to docs/BACKEND_IMPLEMENTATION_PLAN.md for full endpoint contracts',
   });
 });
+
+// Mount Authentication module
+router.use('/auth', authRouter);
 
 export default router;
