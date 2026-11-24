@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import authRouter from './auth.routes.js';
+import donorRouter from './donor.routes.js';
 
 const router = Router();
 
@@ -24,5 +25,8 @@ router.get('/', (req, res) => {
 
 // Mount Authentication module
 router.use('/auth', authRouter);
+
+// Mount Donors module
+router.use('/donors', donorRouter);
 
 export default router;

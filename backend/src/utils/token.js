@@ -9,9 +9,16 @@ export const generateAccessToken = (payload) => {
 };
 
 export const generateRefreshToken = (payload) => {
-  return jwt.sign(payload, config.jwt.refreshSecret, {
-    expiresIn: config.jwt.refreshExpiresIn,
-  });
+  return jwt.sign(
+    {
+      ...payload,
+      jti: crypto.randomUUID(),
+    },
+    config.jwt.refreshSecret,
+    {
+      expiresIn: config.jwt.refreshExpiresIn,
+    }
+  );
 };
 
 export const verifyAccessToken = (token) => {
