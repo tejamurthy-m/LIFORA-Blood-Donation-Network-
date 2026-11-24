@@ -1,0 +1,407 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// -------------------------------------------------------------
+// ENUMS
+// -------------------------------------------------------------
+
+enum UserRole {
+  DONOR
+  RECIPIENT
+  HOSPITAL
+  SUPER_ADMIN
+}
+
+enum StaffRole {
+  HOSPITAL_ADMIN
+  REQUEST_MANAGER
+  DONOR_COORDINATOR
+  MEDICAL_STAFF
+}
+
+enum BloodGroup {
+  A_POSITIVE  @map("A+")
+  A_NEGATIVE  @map("A-")
+  B_POSITIVE  @map("B+")
+  B_NEGATIVE  @map("B-")
+  AB_POSITIVE @map("AB+")
+  AB_NEGATIVE @map("AB-")
+  O_POSITIVE  @map("O+")
+  O_NEGATIVE  @map("O-")
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  CLARIFICATION_REQUESTED
+  REJECTED
+  SUSPENDED
+}
+
+enum RequestUrgency {
+  NORMAL
+  URGENT
+  EMERGENCY
+}
+
+enum RequestStatus {
+  PENDING
+  IN_PROGRESS
+  PARTIALLY_FULFILLED
+  FULFILLED
+  CANCELLED
+  CLOSED
+}
+
+enum ArrivalStatus {
+  EXPECTED
+  ARRIVED
+  SCREENING_IN_PROGRESS
+  COMPLETED
+  NO_SHOW
+  CANCELLED
+}
+
+enum DonationType {
+  WHOLE_BLOOD
+  PACKED_RED_CELLS
+  PLATELETS
+  PLASMA
+  CRYOPRECIPITATE
+}
+
+enum NotificationType {
+  EMERGENCY_REQUEST
+  DONOR_MATCH
+  VERIFICATION_UPDATE
+  ARRIVAL_STATUS
+  DONATION_COMPLETED
+  STAFF_INVITE
+  SYSTEM_ALERT
+}
+
+// -------------------------------------------------------------
+// USER & AUTHENTICATION
+// -------------------------------------------------------------
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  fullName        String
+  phone           String   @unique
+  role            UserRole
+  city            String
+  area            String?
+  avatarUrl       String?
+  isActive        Boolean  @default(true)
+  isEmailVerified Boolean  @default(false)
+  isPhoneVerified Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Refresh tokens for JWT rotation
+  refreshTokens RefreshToken[]
+
+  // Polymorphic profile associations
+  donorProfile     DonorProfile?
+  recipientProfile RecipientProfile?
+  staffProfile     HospitalStaff?
+
+  // Activity relations
+  createdRequests BloodRequest[]    @relation("RequesterUsers")
+  donorResponses  DonorResponse[]
+  uploadedDocs    MedicalDocument[]
+  notifications   Notification[]
+  auditLogs       AuditLog[]        @relation("UserAuditLogs")
+
+  @@index([email])
+  @@index([phone])
+  @@index([city])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// -------------------------------------------------------------
+// DONOR PROFILES & MEDICAL VERIFICATION
+// -------------------------------------------------------------
+
+model DonorProfile {
+  id                 String             @id @default(uuid())
+  userId             String             @unique
+  user               User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bloodGroup         BloodGroup
+  latitude           Float?
+  longitude          Float?
+  isAvailable        Boolean            @default(true)
+  emergencyReady     Boolean            @default(true)
+  badge              String             @default("New Donor")
+  totalDonations     Int                @default(0)
+  lastDonationDate   DateTime?
+  profileCompletion  Int                @default(80)
+  bio                String?
+  age                Int?
+  verificationStatus VerificationStatus @default(PENDING)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  arrivals        DonorArrival[]
+  donationRecords DonationRecord[]
+
+  @@index([bloodGroup, isAvailable])
+  @@index([latitude, longitude])
+}
+
+model MedicalDocument {
+  id                   String             @id @default(uuid())
+  userId               String
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  docType              String // Pathology Report, Govt Blood Donor Card, etc.
+  docNumber            String?
+  fileUrl              String // Private Supabase Storage object path
+  fileMimeType         String
+  fileSizeBytes        Int
+  status               VerificationStatus @default(PENDING)
+  notes                String?
+  clarificationMessage String?
+  verifiedAt           DateTime?
+  verifiedBy           String? // Medical Staff or Admin User ID
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+// -------------------------------------------------------------
+// RECIPIENT PROFILES
+// -------------------------------------------------------------
+
+model RecipientProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emergencyPhone String?
+  hospitalName   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+// -------------------------------------------------------------
+// HOSPITAL & INSTITUTIONAL MANAGEMENT
+// -------------------------------------------------------------
+
+model Hospital {
+  id                 String             @id @default(uuid())
+  name               String
+  licenseNumber      String             @unique
+  registrationNumber String?            @unique
+  address            String
+  city               String
+  state              String             @default("Maharashtra")
+  pincode            String?
+  latitude           Float?
+  longitude          Float?
+  contactPhone       String
+  officialEmail      String             @unique
+  verificationStatus VerificationStatus @default(PENDING)
+  accreditation      String?            @default("NABH Accredited Transfusion Centre")
+  bedCapacity        Int                @default(200)
+  logoUrl            String?
+  headDoctorName     String?
+  headDoctorQual     String?
+  headDoctorPhone    String?
+  headDoctorEmail    String?
+  facilities         String[]           @default(["Whole Blood", "Packed Red Blood Cells (PRBC)", "Platelet Concentrate (RDP / SDP)", "Fresh Frozen Plasma (FFP)"])
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Operational relations
+  staff        HospitalStaff[]
+  requests     BloodRequest[]
+  requirements BloodRequirement[]
+  arrivals     DonorArrival[]
+  donations    DonationRecord[]
+  auditLogs    AuditLog[]
+
+  @@index([city])
+  @@index([verificationStatus])
+}
+
+model HospitalStaff {
+  id         String    @id @default(uuid())
+  hospitalId String
+  hospital   Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  userId     String    @unique
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       StaffRole @default(MEDICAL_STAFF)
+  department String    @default("Transfusion Medicine")
+  status     String    @default("active")
+  joinedDate DateTime  @default(now())
+  lastActive DateTime?
+
+  @@index([hospitalId])
+  @@index([role])
+}
+
+// -------------------------------------------------------------
+// BLOOD REQUESTS & MATCHING
+// -------------------------------------------------------------
+
+model BloodRequest {
+  id                     String         @id @default(uuid())
+  trackingCode           String         @unique // e.g. LIF-8912
+  patientName            String
+  bloodGroup             BloodGroup
+  unitsRequired          Int            @default(1)
+  unitsFulfilled         Int            @default(0)
+  urgency                RequestUrgency @default(NORMAL)
+  requiredDate           DateTime
+  locationDescription    String
+  city                   String
+  latitude               Float?
+  longitude              Float?
+  contactPerson          String
+  contactPhone           String
+  additionalInstructions String?
+  status                 RequestStatus  @default(PENDING)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  // Associations
+  requesterId String?
+  requester   User?     @relation("RequesterUsers", fields: [requesterId], references: [id], onDelete: SetNull)
+  hospitalId  String?
+  hospital    Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+
+  // Tracking and responses
+  responses DonorResponse[]
+  arrivals  DonorArrival[]
+
+  @@index([bloodGroup, status, urgency])
+  @@index([city])
+  @@index([trackingCode])
+}
+
+model DonorResponse {
+  id          String       @id @default(uuid())
+  requestId   String
+  request     BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  donorId     String
+  donor       User         @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  status      String       @default("ACCEPTED")
+  respondedAt DateTime     @default(now())
+  etaMinutes  Int?
+
+  @@unique([requestId, donorId])
+  @@index([donorId])
+}
+
+// -------------------------------------------------------------
+// HOSPITAL OPERATIONS: INVENTORY, ARRIVALS & CLINICAL OUTCOMES
+// -------------------------------------------------------------
+
+model BloodRequirement {
+  id             String         @id @default(uuid())
+  hospitalId     String
+  hospital       Hospital       @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  bloodGroup     BloodGroup
+  targetUnits    Int
+  collectedUnits Int            @default(0)
+  urgency        RequestUrgency @default(NORMAL)
+  status         String         @default("Active")
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([hospitalId, bloodGroup])
+  @@index([hospitalId])
+}
+
+model DonorArrival {
+  id            String        @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital      @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  donorId       String
+  donor         DonorProfile  @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  requestId     String?
+  request       BloodRequest? @relation(fields: [requestId], references: [id], onDelete: SetNull)
+  eta           String
+  arrivedTime   DateTime?
+  status        ArrivalStatus @default(EXPECTED)
+  assignedStaff String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([hospitalId, status])
+}
+
+model DonationRecord {
+  id              String       @id @default(uuid())
+  hospitalId      String
+  hospital        Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  donorId         String
+  donor           DonorProfile @relation(fields: [donorId], references: [id], onDelete: Cascade)
+  bloodGroup      BloodGroup
+  unitsDonated    Int          @default(1)
+  donationType    DonationType @default(WHOLE_BLOOD)
+  screeningPassed Boolean      @default(true)
+  hemoglobinLevel Float?
+  bloodPressure   String?
+  pulseRate       Int?
+  bagBarcode      String?
+  deferralReason  String?
+  verifiedBy      String
+  donationDate    DateTime     @default(now())
+
+  @@index([hospitalId])
+  @@index([donorId])
+}
+
+// -------------------------------------------------------------
+// NOTIFICATIONS & AUDIT LOGS
+// -------------------------------------------------------------
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  metadata  Json?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid())
+  hospitalId String?
+  hospital   Hospital? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  userId     String?
+  user       User?     @relation("UserAuditLogs", fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  actorName  String
+  target     String
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  @@index([hospitalId])
+  @@index([createdAt])
+}
