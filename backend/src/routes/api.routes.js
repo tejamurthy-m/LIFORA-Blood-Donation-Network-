@@ -1,0 +1,24 @@
+import { Router } from 'express';
+
+const router = Router();
+
+// Root API v1 welcome & status
+router.get('/', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Welcome to LIFORA Blood Donation Network REST API v1',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/v1/auth',
+      donors: '/api/v1/donors',
+      requests: '/api/v1/requests',
+      hospitals: '/api/v1/hospitals',
+      verifications: '/api/v1/verifications',
+      notifications: '/api/v1/notifications',
+      platformAdmin: '/api/v1/platform-admin',
+    },
+    documentation: 'Refer to docs/BACKEND_IMPLEMENTATION_PLAN.md for full endpoint contracts',
+  });
+});
+
+export default router;

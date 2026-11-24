@@ -1,0 +1,43 @@
+{
+  "name": "lifora-backend",
+  "version": "1.0.0",
+  "description": "LIFORA Blood Donation Network - Production REST API & WebSocket Server",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": [
+    "blood-donation",
+    "lifora",
+    "healthcare",
+    "express",
+    "prisma",
+    "socket.io"
+  ],
+  "author": "LIFORA Engineering Team",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^7.10.1",
+    "@supabase/supabase-js": "^2.119.2",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.10",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.5",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.1",
+    "nodemailer": "^10.6.1",
+    "socket.io": "^4.8.4",
+    "winston": "^3.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "prisma": "^8.0.0-rc.35",
+    "supertest": "^7.3.2"
+  }
+}
