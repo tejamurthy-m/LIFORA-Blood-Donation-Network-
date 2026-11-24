@@ -17,11 +17,24 @@ describe('LIFORA Phase 3 Authentication & Authorization Tests', () => {
 
   after(async () => {
     // Clean up test users created during test runs
-    await prisma.user.deleteMany({
+    const testUsers = await prisma.user.findMany({
       where: {
-        email: { in: ['test.donor@lifora.org', 'test.hospital@lifora.org'] },
+        OR: [
+          { email: { startsWith: 'test.donor' } },
+          { email: { startsWith: 'hospital.' } },
+          { fullName: { contains: 'Test Voluntary Donor', mode: 'insensitive' } },
+        ],
       },
+      select: { id: true },
     });
+    const ids = testUsers.map((u) => u.id);
+    if (ids.length > 0) {
+      await prisma.refreshToken.deleteMany({ where: { userId: { in: ids } } });
+      await prisma.donorProfile.deleteMany({ where: { userId: { in: ids } } });
+      await prisma.hospitalStaff.deleteMany({ where: { userId: { in: ids } } });
+      await prisma.hospital.deleteMany({ where: { officialEmail: { contains: 'testhealthcare.org' } } });
+      await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    }
     await prisma.$disconnect();
   });
 

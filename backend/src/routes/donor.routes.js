@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { donorController } from '../controllers/donor.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -10,6 +10,6 @@ router.get('/:id', donorController.getDonorById);
 
 // Protected donor management endpoints
 router.patch('/:id/availability', authenticate, donorController.updateAvailability);
-router.post('/:id/direct-request', authenticate, donorController.sendDirectRequest);
+router.post('/:id/direct-request', optionalAuthenticate, donorController.sendDirectRequest);
 
 export default router;

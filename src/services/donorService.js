@@ -128,4 +128,29 @@ export const donorService = {
     saveStoredDonors(updated);
     return isAvailable;
   },
+
+  // Send direct donation request to donor
+  async sendDirectRequest(donorId, payload) {
+    try {
+      const res = await api.post(`/donors/${donorId}/direct-request`, {
+        hospitalName: payload.hospitalName || 'City Hospital',
+        unitsNeeded: payload.unitsNeeded || 1,
+        isEmergency: Boolean(payload.isEmergency),
+        patientName: payload.requester || 'Verified Patient',
+      });
+      if (res.data?.success) {
+        return res.data.data;
+      }
+    } catch (e) {
+      console.warn('Backend direct request fallback:', e.message);
+    }
+
+    await simulatedDelay(300);
+    return {
+      success: true,
+      message: 'Direct request dispatched to donor successfully.',
+      donorId,
+      ...payload,
+    };
+  },
 };

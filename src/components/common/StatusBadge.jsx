@@ -5,10 +5,10 @@ export default function StatusBadge({ status, type = 'status', className = '', s
   if (!status) return null;
 
   const sizeClasses = {
-    sm: 'text-[11px] px-2 py-0.5 gap-1',
-    md: 'text-xs px-2.5 py-1 gap-1.5',
-    lg: 'text-sm px-3.5 py-1.5 gap-2',
-  }[size] || 'text-xs px-2.5 py-1 gap-1.5';
+    sm: 'text-[11px] px-2 py-0.5 gap-1 whitespace-nowrap shrink-0',
+    md: 'text-xs px-2.5 py-1 gap-1.5 whitespace-nowrap shrink-0',
+    lg: 'text-sm px-3.5 py-1.5 gap-2 whitespace-nowrap shrink-0',
+  }[size] || 'text-xs px-2.5 py-1 gap-1.5 whitespace-nowrap shrink-0';
 
   const normalized = status.toString().toLowerCase();
 

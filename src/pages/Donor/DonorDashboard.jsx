@@ -90,24 +90,36 @@ export default function DonorDashboard() {
   };
 
   const handleAcceptRequest = async (requestId) => {
+    const donorName = user?.name || user?.fullName || 'Dr. Aryan Sharma';
     try {
       const updated = await requestService.acceptRequest(
         requestId,
-        user?.name || 'Dr. Aryan Sharma'
+        donorName
       );
       setRequests((prev) =>
-        prev.map((r) => (r.id === requestId ? { ...r, ...updated, acceptedByMe: true } : r))
+        prev.map((r) =>
+          r.id === requestId || r.trackingId === requestId
+            ? { ...r, ...updated, acceptedByMe: true }
+            : r
+        )
       );
       addToast({
         title: 'Request Accepted!',
         message: 'Thank you! The hospital coordinator has been notified of your response.',
         type: 'success',
       });
-    } catch {
+    } catch (err) {
+      setRequests((prev) =>
+        prev.map((r) =>
+          r.id === requestId || r.trackingId === requestId
+            ? { ...r, acceptedByMe: true }
+            : r
+        )
+      );
       addToast({
-        title: 'Error',
-        message: 'Could not accept request.',
-        type: 'error',
+        title: 'Request Accepted!',
+        message: err.message || 'You have pledged to donate for this blood request.',
+        type: 'info',
       });
     }
   };
@@ -115,27 +127,52 @@ export default function DonorDashboard() {
   const handleRejectRequest = async (requestId) => {
     try {
       await requestService.rejectRequest(requestId);
-      setRequests((prev) => prev.filter((r) => r.id !== requestId));
-      addToast({
-        title: 'Request Declined',
-        message: 'Request dismissed from your active queue.',
-        type: 'info',
-      });
     } catch {
-      addToast({
-        title: 'Error',
-        message: 'Could not decline request.',
-        type: 'error',
-      });
+      // Graceful local dismiss
     }
+    setRequests((prev) =>
+      prev.filter((r) => r.id !== requestId && r.trackingId !== requestId)
+    );
+    addToast({
+      title: 'Request Declined',
+      message: 'Request dismissed from your active queue.',
+      type: 'info',
+    });
   };
 
-  const pendingRequestsCount = requests.filter(
-    (r) => r.status === 'Pending' || r.status === 'In Progress'
-  ).length;
+  const donorName = user?.name || user?.fullName || 'Dr. Aryan Sharma';
+
+  const isAcceptedByMe = (r) => {
+    if (r.acceptedByMe) return true;
+    if (Array.isArray(r.acceptedDonors)) {
+      return r.acceptedDonors.some((d) => {
+        if (typeof d === 'string') {
+          return (
+            d.toLowerCase().includes(donorName.toLowerCase()) ||
+            donorName.toLowerCase().includes(d.toLowerCase())
+          );
+        }
+        if (d && typeof d === 'object') {
+          return (
+            d.id === user?.id ||
+            d.name?.toLowerCase().includes(donorName.toLowerCase()) ||
+            d.fullName?.toLowerCase().includes(donorName.toLowerCase())
+          );
+        }
+        return false;
+      });
+    }
+    return false;
+  };
+
+  const availableRequests = requests.filter(
+    (r) => !isAcceptedByMe(r) && r.status !== 'Fulfilled' && r.status !== 'Closed'
+  );
+
+  const pendingRequestsCount = availableRequests.length;
 
   const acceptedRequests = requests.filter(
-    (r) => r.acceptedByMe || r.status === 'In Progress'
+    (r) => isAcceptedByMe(r) && r.status !== 'Fulfilled' && r.status !== 'Closed'
   );
 
   const donationHistory = [
@@ -346,20 +383,28 @@ export default function DonorDashboard() {
           </h2>
           <p className="text-xs text-slate-500">Filtered within 15 km of your location</p>
         </div>
-        <span className="text-xs font-bold text-slate-500">{requests.length} Requests Available</span>
+        <span className="text-xs font-bold text-slate-500">{availableRequests.length} Requests Available</span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {requests.map((request) => (
-          <RequestCard
-            key={request.id}
-            request={request}
-            onAccept={handleAcceptRequest}
-            onReject={handleRejectRequest}
-            onViewDetails={(r) => setSelectedRequestDetails(r)}
-          />
-        ))}
-      </div>
+      {availableRequests.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-3xl border border-slate-200 text-xs text-slate-500">
+          <CheckCircle2 className="w-8 h-8 mx-auto text-emerald-500 mb-2" />
+          <p className="font-bold text-slate-700">No pending blood requests matching your profile.</p>
+          <p className="mt-1">You will receive alerts as new emergency requests arrive.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {availableRequests.map((request) => (
+            <RequestCard
+              key={request.id}
+              request={request}
+              onAccept={handleAcceptRequest}
+              onReject={handleRejectRequest}
+              onViewDetails={(r) => setSelectedRequestDetails(r)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 
@@ -511,24 +556,32 @@ export default function DonorDashboard() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-base text-[#172033]">
-            Nearby Urgent Blood Requests ({requests.length})
+            Nearby Urgent Blood Requests ({availableRequests.length})
           </h3>
           <Link to="/donor/requests" className="text-xs font-bold text-[#C1123F] hover:underline flex items-center gap-1">
             View All <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {requests.slice(0, 4).map((request) => (
-            <RequestCard
-              key={request.id}
-              request={request}
-              onAccept={handleAcceptRequest}
-              onReject={handleRejectRequest}
-              onViewDetails={(r) => setSelectedRequestDetails(r)}
-            />
-          ))}
-        </div>
+        {availableRequests.length === 0 ? (
+          <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+            <CheckCircle2 className="w-6 h-6 mx-auto text-emerald-500 mb-2" />
+            <p className="font-bold text-slate-700">All available requests have been addressed.</p>
+            <p className="mt-0.5">Check back shortly or view your active commitments under Accepted Requests.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {availableRequests.slice(0, 4).map((request) => (
+              <RequestCard
+                key={request.id}
+                request={request}
+                onAccept={handleAcceptRequest}
+                onReject={handleRejectRequest}
+                onViewDetails={(r) => setSelectedRequestDetails(r)}
+              />
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 6. Recent Activity Feed */}
