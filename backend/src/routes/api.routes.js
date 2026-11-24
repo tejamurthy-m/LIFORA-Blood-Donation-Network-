@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import authRouter from './auth.routes.js';
 import donorRouter from './donor.routes.js';
+import verificationRouter from './verification.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,8 @@ router.use('/auth', authRouter);
 
 // Mount Donors module
 router.use('/donors', donorRouter);
+
+// Mount Medical Verification module
+router.use('/verifications', verificationRouter);
 
 export default router;
