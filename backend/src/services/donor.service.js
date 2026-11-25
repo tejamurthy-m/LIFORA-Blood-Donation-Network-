@@ -257,6 +257,7 @@ export const donorService = {
 
     // Authorization: User can only toggle their own availability unless Super Admin
     if (
+      requestingUser &&
       requestingUser.role !== 'SUPER_ADMIN' &&
       requestingUser.id !== profile.userId
     ) {

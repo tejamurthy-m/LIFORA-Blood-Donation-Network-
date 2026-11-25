@@ -199,7 +199,8 @@ export const verificationService = {
     let notifyTitle = '';
     let notifyMessage = '';
 
-    const normalizedAction = (action || '').toLowerCase();
+    const rawAction = action || reviewData.status || '';
+    const normalizedAction = (rawAction.toUpperCase() === 'VERIFIED' ? 'approve' : rawAction).toLowerCase();
 
     if (normalizedAction === 'approve' || normalizedAction === 'approved') {
       newStatus = 'VERIFIED';
