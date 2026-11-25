@@ -93,6 +93,7 @@ export const donorService = {
       bloodGroup,
       city,
       onlyAvailable,
+      onlyVerified,
       maxDistance,
       search,
       sortBy,
@@ -134,6 +135,11 @@ export const donorService = {
       where.isAvailable = true;
     }
 
+    // Clinical verification filter: only donors with approved verification appear in verified matching
+    if (onlyVerified !== false && onlyVerified !== 'false') {
+      where.verificationStatus = 'VERIFIED';
+    }
+
     // City filter
     if (city && city !== 'ALL' && city.trim() !== '') {
       where.user.city = {
@@ -144,8 +150,9 @@ export const donorService = {
 
     // Blood group filter
     if (bloodGroup && bloodGroup !== 'ALL') {
+      const normalizedBg = REVERSE_BLOOD_GROUP_MAP[bloodGroup] || bloodGroup;
       // Find compatible blood groups if exact match or compatible
-      const compatibleGroups = getCompatibleDonors(bloodGroup);
+      const compatibleGroups = getCompatibleDonors(normalizedBg);
       const mappedPrismaEnums = compatibleGroups
         .map((bg) => BLOOD_GROUP_MAP[bg])
         .filter(Boolean);
@@ -154,7 +161,8 @@ export const donorService = {
         in: mappedPrismaEnums,
       };
     } else if (compatibleWith) {
-      const compatibleGroups = getCompatibleDonors(compatibleWith);
+      const normalizedBg = REVERSE_BLOOD_GROUP_MAP[compatibleWith] || compatibleWith;
+      const compatibleGroups = getCompatibleDonors(normalizedBg);
       const mappedPrismaEnums = compatibleGroups
         .map((bg) => BLOOD_GROUP_MAP[bg])
         .filter(Boolean);

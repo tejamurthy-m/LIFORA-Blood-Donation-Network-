@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { verificationController } from '../controllers/verification.controller.js';
-import { authenticate, requireRole } from '../middleware/auth.js';
+import { authenticate, requireRole, requireMedicalReviewer } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -24,18 +24,18 @@ router.post(
 
 router.get('/my-document', authenticate, verificationController.getMyDocument);
 
-// Clinical / Platform Review Queue (Authorized Medical Staff, Hospital Admin, Super Admin)
+// Clinical Review Queue (Restricted strictly to Authorized Medical Staff, Hospital Admin, Super Admin)
 router.get(
   '/queue',
   authenticate,
-  requireRole('HOSPITAL', 'SUPER_ADMIN'),
+  requireMedicalReviewer,
   verificationController.getVerificationQueue
 );
 
 router.patch(
   '/:id/review',
   authenticate,
-  requireRole('HOSPITAL', 'SUPER_ADMIN'),
+  requireMedicalReviewer,
   verificationController.reviewDocument
 );
 
