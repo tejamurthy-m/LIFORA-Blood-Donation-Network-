@@ -17,6 +17,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import StatusBadge from '../common/StatusBadge';
+import DonorDocumentVerificationCard from '../donor/DonorDocumentVerificationCard';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
 const CITIES = ['Mumbai', 'Bangalore', 'Delhi', 'Hyderabad', 'Pune', 'Chennai'];
@@ -120,6 +121,17 @@ export default function UserProfileView() {
           </div>
         </div>
       </div>
+
+      {/* Donor Blood Report Verification Section */}
+      {role === 'donor' && (
+        <DonorDocumentVerificationCard
+          onStatusUpdate={(newStatus) => {
+            if (newStatus === 'verified' || newStatus === 'approved') {
+              updateProfile({ badge: 'Verified Donor' });
+            }
+          }}
+        />
+      )}
 
       {/* Edit Profile Form */}
       <form onSubmit={handleSave} className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">

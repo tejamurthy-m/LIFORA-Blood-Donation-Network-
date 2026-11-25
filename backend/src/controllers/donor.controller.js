@@ -75,4 +75,18 @@ export const donorController = {
       next(error);
     }
   },
+
+  // GET /api/v1/donors/me/donations
+  async getMyDonations(req, res, next) {
+    try {
+      const records = await donorService.getMyDonations(req.user.id);
+      res.status(200).json({
+        success: true,
+        count: records.length,
+        data: records,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
 };

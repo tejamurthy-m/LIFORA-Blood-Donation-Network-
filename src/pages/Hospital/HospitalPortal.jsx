@@ -22,6 +22,7 @@ import HospitalAnalyticsView from '../../components/hospital/HospitalAnalyticsVi
 import HospitalProfileView from '../../components/hospital/HospitalProfileView';
 import HospitalSettingsView from '../../components/hospital/HospitalSettingsView';
 import HospitalPendingVerificationView from '../../components/hospital/HospitalPendingVerificationView';
+import DonorVerificationView from '../../components/admin/DonorVerificationView';
 
 export default function HospitalPortal() {
   const { user, staffRole } = useAuth();
@@ -44,6 +45,7 @@ export default function HospitalPortal() {
   const isDonors = path.includes('/hospital/donors');
   const isArrivals = path.includes('/hospital/arrivals');
   const isDonations = path.includes('/hospital/donations');
+  const isVerifications = path.includes('/hospital/verifications');
   const isTracking = path.includes('/hospital/tracking');
   const isStaff = path.includes('/hospital/staff');
   const isNotifications = path.includes('/hospital/notifications');
@@ -228,6 +230,10 @@ export default function HospitalPortal() {
         onRecordDonation={handleRecordDonation}
       />
     );
+  }
+
+  if (isVerifications) {
+    return <DonorVerificationView />;
   }
 
   if (isTracking) {

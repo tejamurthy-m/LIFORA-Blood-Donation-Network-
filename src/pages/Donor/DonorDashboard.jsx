@@ -32,6 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { requestService } from '../../services/requestService';
 import { donorService } from '../../services/donorService';
+import api from '../../services/api';
 
 export default function DonorDashboard() {
   const { user, updateProfile } = useAuth();
@@ -39,6 +40,7 @@ export default function DonorDashboard() {
   const location = useLocation();
 
   const [requests, setRequests] = useState([]);
+  const [realDonations, setRealDonations] = useState([]);
   const [activeTab, setActiveTab] = useState('requests'); // 'requests' | 'history'
   const [selectedRequestDetails, setSelectedRequestDetails] = useState(null);
 
@@ -66,6 +68,22 @@ export default function DonorDashboard() {
       isMounted = false;
     };
   }, []);
+
+  // Load donor donation history from backend API
+  useEffect(() => {
+    let isMounted = true;
+    api
+      .get('/donors/me/donations')
+      .then((res) => {
+        if (isMounted && res.data?.data && Array.isArray(res.data.data)) {
+          setRealDonations(res.data.data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   const handleToggleAvailability = async () => {
     if (!user) return;
@@ -219,7 +237,7 @@ export default function DonorDashboard() {
     (r) => isAcceptedByMe(r) && r.status !== 'Fulfilled' && r.status !== 'Closed'
   );
 
-  const donationHistory = [
+  const defaultHistorySeed = [
     {
       id: 'h1',
       date: '10 Aug 2026',
@@ -251,6 +269,20 @@ export default function DonorDashboard() {
       certificateId: 'CERT-LIF-744',
     },
   ];
+
+  const donationHistory =
+    realDonations.length > 0
+      ? realDonations.map((r) => ({
+          id: r.id,
+          date: r.dateFormatted || new Date(r.donationDate).toLocaleDateString(),
+          hospital: r.hospitalName,
+          city: r.hospitalCity,
+          units: `${r.unitsDonated} Unit (${r.donationType})`,
+          purpose: r.screeningPassed ? 'Clinical Transfusion - Screening Cleared' : 'Medically Deferred',
+          status: r.screeningPassed ? 'Verified & Completed' : 'Deferred',
+          certificateId: `LIF-DON-${r.id.substring(0, 6).toUpperCase()}`,
+        }))
+      : defaultHistorySeed;
 
   // Sub-view: Availability Status
   const renderAvailabilityView = () => (

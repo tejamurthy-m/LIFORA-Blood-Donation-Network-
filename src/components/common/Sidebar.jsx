@@ -105,6 +105,13 @@ export default function Sidebar({ isOpen, onClose }) {
       permission: 'record_donations',
     },
     {
+      label: 'Donor Verifications',
+      path: '/hospital/verifications',
+      icon: ShieldCheck,
+      badge: 'Review',
+      permission: 'review_verifications',
+    },
+    {
       label: 'Requirement Tracking',
       path: '/hospital/tracking',
       icon: TrendingUp,

@@ -32,6 +32,7 @@ import ConfirmationDialog from '../common/ConfirmationDialog';
 import StatusBadge from '../common/StatusBadge';
 import { useToast } from '../../context/ToastContext';
 import { getStoredDonors, saveStoredDonors } from '../../services/donorService';
+import { verificationService } from '../../services/verificationService';
 
 const VERIFICATION_STORAGE_KEY = 'lifora_donor_verifications_data';
 
@@ -191,6 +192,29 @@ export default function DonorVerificationView() {
   const [rejectConfirmDonor, setRejectConfirmDonor] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
+  // Load live verification items from backend API
+  useEffect(() => {
+    let isMounted = true;
+    verificationService
+      .getVerificationQueue()
+      .then((liveItems) => {
+        if (isMounted && Array.isArray(liveItems) && liveItems.length > 0) {
+          setQueue((prev) => {
+            const liveIds = new Set(liveItems.map((i) => i.id));
+            const remaining = prev.filter((p) => !liveIds.has(p.id));
+            return [...liveItems, ...remaining];
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('Live verification queue fetch fallback:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   // Persist queue
   useEffect(() => {
     localStorage.setItem(VERIFICATION_STORAGE_KEY, JSON.stringify(queue));
@@ -240,8 +264,19 @@ export default function DonorVerificationView() {
     setApproveConfirmDonor(donor);
   };
 
-  const confirmApprove = () => {
+  const confirmApprove = async () => {
     if (!approveConfirmDonor) return;
+
+    try {
+      if (approveConfirmDonor.id && !approveConfirmDonor.id.startsWith('v')) {
+        await verificationService.reviewDocument(approveConfirmDonor.id, {
+          action: 'approve',
+          notes: 'Clinical verification approved by authorized medical reviewer.',
+        });
+      }
+    } catch (err) {
+      console.warn('API reviewDocument approve error:', err);
+    }
 
     const updatedQueue = queue.map((d) => {
       if (d.id === approveConfirmDonor.id) {
@@ -305,7 +340,7 @@ export default function DonorVerificationView() {
     setClarificationPriority('Normal');
   };
 
-  const handleSendClarification = (e) => {
+  const handleSendClarification = async (e) => {
     e.preventDefault();
     if (!clarificationModalDonor) return;
 
@@ -316,6 +351,17 @@ export default function DonorVerificationView() {
         type: 'warning',
       });
       return;
+    }
+
+    try {
+      if (clarificationModalDonor.id && !clarificationModalDonor.id.startsWith('v')) {
+        await verificationService.reviewDocument(clarificationModalDonor.id, {
+          action: 'request_clarification',
+          clarificationMessage: clarificationText.trim(),
+        });
+      }
+    } catch (err) {
+      console.warn('API reviewDocument clarification error:', err);
     }
 
     const updatedQueue = queue.map((d) => {
@@ -357,8 +403,19 @@ export default function DonorVerificationView() {
     setRejectReason('');
   };
 
-  const confirmReject = () => {
+  const confirmReject = async () => {
     if (!rejectConfirmDonor) return;
+
+    try {
+      if (rejectConfirmDonor.id && !rejectConfirmDonor.id.startsWith('v')) {
+        await verificationService.reviewDocument(rejectConfirmDonor.id, {
+          action: 'reject',
+          notes: rejectReason || 'Document verification criteria not met.',
+        });
+      }
+    } catch (err) {
+      console.warn('API reviewDocument reject error:', err);
+    }
 
     const updatedQueue = queue.map((d) => {
       if (d.id === rejectConfirmDonor.id) {

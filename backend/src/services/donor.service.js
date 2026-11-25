@@ -394,4 +394,45 @@ export const donorService = {
       dispatchedAt: new Date().toISOString(),
     };
   },
+
+  // Get donor's completed donation records
+  async getMyDonations(userId) {
+    const donorProfile = await prisma.donorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!donorProfile) {
+      return [];
+    }
+
+    const records = await prisma.donationRecord.findMany({
+      where: { donorId: donorProfile.id },
+      include: {
+        hospital: {
+          select: {
+            id: true,
+            name: true,
+            city: true,
+            address: true,
+          },
+        },
+      },
+      orderBy: { donationDate: 'desc' },
+    });
+
+    return records.map((r) => ({
+      id: r.id,
+      hospitalName: r.hospital?.name || 'Authorized Blood Transfusion Center',
+      hospitalCity: r.hospital?.city || 'Bangalore',
+      bloodGroup: REVERSE_BLOOD_GROUP_MAP[r.bloodGroup] || r.bloodGroup,
+      unitsDonated: r.unitsDonated,
+      donationType: r.donationType,
+      screeningPassed: r.screeningPassed,
+      hemoglobinLevel: r.hemoglobinLevel,
+      bloodPressure: r.bloodPressure,
+      verifiedBy: r.verifiedBy,
+      donationDate: r.donationDate.toISOString(),
+      dateFormatted: r.donationDate.toISOString().substring(0, 10),
+    }));
+  },
 };

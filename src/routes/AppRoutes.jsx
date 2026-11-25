@@ -83,6 +83,7 @@ export default function AppRoutes() {
         <Route path="donors" element={<HospitalPortal />} />
         <Route path="arrivals" element={<HospitalPortal />} />
         <Route path="donations" element={<HospitalPortal />} />
+        <Route path="verifications" element={<HospitalPortal />} />
         <Route path="tracking" element={<HospitalPortal />} />
         <Route path="staff" element={<HospitalPortal />} />
         <Route path="notifications" element={<HospitalPortal />} />
