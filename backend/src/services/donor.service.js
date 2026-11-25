@@ -344,26 +344,36 @@ export const donorService = {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
     }
 
-    // Determine the sender's display name
-    // Priority: explicit patientName or requester passed in requestData, or requestingUser fullName (if not self)
-    const requesterName =
-      requestData?.patientName ||
-      requestData?.requester ||
-      (requestingUser && requestingUser.id !== donor.userId ? requestingUser.fullName : null) ||
-      'Verified Patient';
+    // Safety check: Donors cannot dispatch requisitions to themselves
+    if (requestingUser && donor.userId && requestingUser.id === donor.userId) {
+      throw new ApiError(400, 'You cannot dispatch a blood requisition to your own donor profile.', 'CANNOT_REQUEST_SELF');
+    }
 
-    // Create in-app notification for the target donor
+    // Determine the sender's display name and patient context
+    const requesterName =
+      (requestData?.requester && requestData.requester.trim()) ||
+      (requestingUser ? requestingUser.fullName : null) ||
+      'Verified Patient Attendant';
+
+    const patientName =
+      (requestData?.patientName && requestData.patientName.trim()) ||
+      requesterName;
+
+    const patientContext = patientName !== requesterName ? ` (Patient: ${patientName})` : '';
+    const hospitalContext = requestData?.hospitalName ? ` for ${requestData.hospitalName}` : '';
+
+    // 1. Create in-app notification strictly for the target donor
     if (donor.userId) {
-      const hospitalText = requestData?.hospitalName ? ` for ${requestData.hospitalName}` : '';
       const createdNotif = await prisma.notification.create({
         data: {
           userId: donor.userId,
           type: 'DONOR_MATCH',
-          title: 'Direct Blood Requisition Received',
-          message: `${requesterName} has requested an urgent ${donor.bloodGroup} donation from you${hospitalText}.`,
+          title: 'Direct Blood Requisition Received 🩸',
+          message: `${requesterName}${patientContext} has requested an urgent ${donor.bloodGroup} donation from you${hospitalContext}.`,
           metadata: {
             requesterId: requestingUser?.id || null,
-            requesterName: requesterName,
+            requesterName,
+            patientName,
             bloodGroup: donor.bloodGroup,
             ...requestData,
           },
@@ -382,6 +392,36 @@ export const donorService = {
           metadata: createdNotif.metadata,
           isRead: false,
           createdAt: createdNotif.createdAt.toISOString(),
+        });
+      }
+    }
+
+    // 2. Create confirmation notification for the requester
+    if (requestingUser?.id && requestingUser.id !== donor.userId) {
+      const reqNotif = await prisma.notification.create({
+        data: {
+          userId: requestingUser.id,
+          type: 'DONOR_MATCH',
+          title: 'Direct Request Dispatched 🩸',
+          message: `Your request for ${donor.bloodGroup} blood has been delivered to verified donor ${donor.fullName}${hospitalContext}.`,
+          metadata: {
+            donorId: donor.id,
+            donorName: donor.fullName,
+            bloodGroup: donor.bloodGroup,
+            ...requestData,
+          },
+        },
+      }).catch(() => null);
+
+      if (reqNotif) {
+        emitToUser(requestingUser.id, 'notification:received', {
+          id: reqNotif.id,
+          type: reqNotif.type,
+          title: reqNotif.title,
+          message: reqNotif.message,
+          metadata: reqNotif.metadata,
+          isRead: false,
+          createdAt: reqNotif.createdAt.toISOString(),
         });
       }
     }

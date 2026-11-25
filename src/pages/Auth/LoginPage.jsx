@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle, KeyRound } from 'lucide-react';
 import LiforaLogo from '../../components/common/LiforaLogo';
+import Modal from '../../components/common/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { authService } from '../../services/authService';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('donor@lifora.org');
@@ -15,10 +17,78 @@ export default function LoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedDemoPortal, setSelectedDemoPortal] = useState('donor');
 
+  // Password Reset Modal State
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [resetStep, setResetStep] = useState('request'); // 'request' | 'confirm'
+  const [resetLoading, setResetLoading] = useState(false);
+
   const { login } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleRequestReset = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      const res = await authService.forgotPassword(resetEmail);
+      setResetStep('confirm');
+      addToast({
+        title: 'Reset Code Dispatched',
+        message: res.message || 'Instructions and reset code sent to your email.',
+        type: 'info',
+      });
+      if (res.devResetCode) {
+        addToast({
+          title: 'Development Reset Code',
+          message: `Code: ${res.devResetCode}`,
+          type: 'warning',
+        });
+      }
+    } catch (err) {
+      addToast({
+        title: 'Request Failed',
+        message: err.message,
+        type: 'error',
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handlePerformReset = async (e) => {
+    e.preventDefault();
+    setResetLoading(true);
+    try {
+      await authService.resetPassword({
+        email: resetEmail,
+        resetCode,
+        newPassword,
+      });
+      addToast({
+        title: 'Password Reset Successful 🎉',
+        message: 'Your password has been changed. Please log in with your new credentials.',
+        type: 'success',
+      });
+      setResetModalOpen(false);
+      setResetStep('request');
+      setPassword(newPassword);
+      setEmail(resetEmail);
+      setResetCode('');
+      setNewPassword('');
+    } catch (err) {
+      addToast({
+        title: 'Reset Failed',
+        message: err.message,
+        type: 'error',
+      });
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const from = location.state?.from?.pathname;
 
@@ -245,20 +315,17 @@ export default function LoginPage() {
                 <label className="block text-xs font-bold text-[#172033]">
                   Password
                 </label>
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    addToast({
-                      title: 'Password Reset',
-                      message: 'In demo mode, use donor123, recipient123, or admin123.',
-                      type: 'info',
-                    });
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email || '');
+                    setResetStep('request');
+                    setResetModalOpen(true);
                   }}
                   className="text-xs font-semibold text-[#C1123F] hover:underline"
                 >
                   Forgot password?
-                </a>
+                </button>
               </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -320,6 +387,104 @@ export default function LoginPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Password Reset Modal */}
+      <Modal
+        isOpen={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        title="Reset Account Password"
+        subtitle="Recover access to your LIFORA account"
+        maxWidth="max-w-md"
+      >
+        {resetStep === 'request' ? (
+          <form onSubmit={handleRequestReset} className="space-y-4">
+            <p className="text-xs text-slate-600">
+              Enter your registered email address. We will dispatch a single-use 6-digit reset code.
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-[#172033] mb-1.5">Registered Email</label>
+              <div className="relative">
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="email"
+                  required
+                  placeholder="name@example.com"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setResetModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={resetLoading}
+                className="px-5 py-2 rounded-xl bg-[#C1123F] hover:bg-[#9E0E32] text-white text-xs font-bold flex items-center gap-2"
+              >
+                {resetLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Send Reset Code
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handlePerformReset} className="space-y-4">
+            <p className="text-xs text-slate-600">
+              Enter the 6-digit reset code sent to <strong>{resetEmail}</strong> and specify your new password.
+            </p>
+            <div>
+              <label className="block text-xs font-bold text-[#172033] mb-1.5">6-Digit Reset Code</label>
+              <input
+                type="text"
+                required
+                maxLength={6}
+                value={resetCode}
+                onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="w-full text-center tracking-[8px] text-xl font-bold py-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[#172033] mb-1.5">New Password</label>
+              <div className="relative">
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="At least 6 characters"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setResetStep('request')}
+                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+              >
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={resetLoading || resetCode.length !== 6 || newPassword.length < 6}
+                className="px-5 py-2 rounded-xl bg-[#C1123F] hover:bg-[#9E0E32] text-white text-xs font-bold flex items-center gap-2 disabled:bg-slate-300"
+              >
+                {resetLoading && <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                Reset Password
+              </button>
+            </div>
+          </form>
+        )}
+      </Modal>
     </div>
   );
 }

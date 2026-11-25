@@ -154,4 +154,84 @@ export const emailService = {
       text: `Dear ${recipientName}, your LIFORA blood request ${trackingCode} has been completely fulfilled with ${unitsFulfilled} units collected.`,
     });
   },
+
+  // 4. Email Verification OTP
+  async sendEmailVerificationOtp({ email, otpCode }) {
+    const subject = `[LIFORA] Verify Your Email Address - Code: ${otpCode}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="background-color: #C1123F; color: white; padding: 12px 20px; border-radius: 6px; text-align: center;">
+          <h2 style="margin: 0;">LIFORA Email Verification</h2>
+        </div>
+        <p style="margin-top: 20px;">Hello,</p>
+        <p>Please use the following 6-digit verification code to confirm your email on LIFORA:</p>
+        <div style="text-align: center; margin: 25px 0;">
+          <span style="display: inline-block; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #C1123F; background: #fff1f2; padding: 12px 24px; border-radius: 8px; border: 1px dashed #C1123F;">${otpCode}</span>
+        </div>
+        <p style="font-size: 13px; color: #64748b;">This code is valid for 15 minutes. If you did not request this verification, please disregard this email.</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">LIFORA - Lifesaving Fast Online Response & Allocation</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      text: `Your LIFORA email verification code is: ${otpCode}. It is valid for 15 minutes.`,
+    });
+  },
+
+  // 5. Password Reset Token / Code
+  async sendPasswordResetToken({ email, token, resetCode }) {
+    const subject = `[LIFORA] Reset Your Account Password`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="background-color: #172033; color: white; padding: 12px 20px; border-radius: 6px; text-align: center;">
+          <h2 style="margin: 0;">LIFORA Password Reset</h2>
+        </div>
+        <p style="margin-top: 20px;">Hello,</p>
+        <p>We received a request to reset your password. Use the following single-use reset code in the app:</p>
+        <div style="text-align: center; margin: 25px 0;">
+          <span style="display: inline-block; font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #172033; background: #f1f5f9; padding: 12px 24px; border-radius: 8px; border: 1px solid #cbd5e1;">${resetCode}</span>
+        </div>
+        <p style="font-size: 13px; color: #64748b;">This code will expire in 60 minutes. If you did not make this request, your account credentials remain safe and no action is needed.</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">LIFORA Security Team</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: email,
+      subject,
+      html,
+      text: `Your LIFORA password reset code is: ${resetCode}. Valid for 60 minutes.`,
+    });
+  },
+
+  // 6. Hospital Staff Invitation
+  async sendStaffInvitation({ staffEmail, staffName, hospitalName, roleLabel, temporaryPassword }) {
+    const subject = `[LIFORA] Staff Access Invitation - ${hospitalName}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <div style="background-color: #C1123F; color: white; padding: 12px 20px; border-radius: 6px; text-align: center;">
+          <h2 style="margin: 0;">Hospital Portal Staff Invitation</h2>
+        </div>
+        <p style="margin-top: 20px;">Dear <strong>${staffName}</strong>,</p>
+        <p>You have been assigned as <strong>${roleLabel}</strong> for <strong>${hospitalName}</strong> on the LIFORA Blood Donation & Requisition Network.</p>
+        <div style="background: #f8fafc; border-left: 4px solid #C1123F; padding: 14px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0 0 6px 0;"><strong>Portal Login:</strong> <a href="http://localhost:5173/login">http://localhost:5173/login</a></p>
+          <p style="margin: 0 0 6px 0;"><strong>Username:</strong> ${staffEmail}</p>
+          <p style="margin: 0;"><strong>Temporary Password:</strong> ${temporaryPassword || 'hospital123'}</p>
+        </div>
+        <p style="font-size: 13px; color: #64748b;">Please log in and update your security credentials upon first entry.</p>
+        <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 24px;">LIFORA Institutional Health Portal</p>
+      </div>
+    `;
+
+    return this.sendEmail({
+      to: staffEmail,
+      subject,
+      html,
+      text: `Dear ${staffName}, you have been invited to ${hospitalName} on LIFORA as ${roleLabel}. Log in with ${staffEmail} and password: ${temporaryPassword || 'hospital123'}.`,
+    });
+  },
 };

@@ -1,4 +1,5 @@
 import { authService, formatUserResponse } from '../services/auth.service.js';
+import { otpService } from '../services/otp.service.js';
 
 export const authController = {
   // POST /api/v1/auth/register
@@ -95,6 +96,71 @@ export const authController = {
         success: true,
         message: result.message,
       });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/phone/send-otp
+  async sendPhoneOtp(req, res, next) {
+    try {
+      const { phone } = req.body;
+      const result = await otpService.sendPhoneOtp(phone || req.user?.phone);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/phone/verify-otp
+  async verifyPhoneOtp(req, res, next) {
+    try {
+      const { phone, otp } = req.body;
+      const result = await otpService.verifyPhoneOtp(phone || req.user?.phone, otp, req.user);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/email/send-verification
+  async sendEmailVerification(req, res, next) {
+    try {
+      const { email } = req.body;
+      const result = await otpService.sendEmailVerification(email || req.user?.email);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/email/verify
+  async verifyEmail(req, res, next) {
+    try {
+      const { email, code } = req.body;
+      const result = await otpService.verifyEmailCode(email || req.user?.email, code, req.user);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/forgot-password
+  async forgotPassword(req, res, next) {
+    try {
+      const { email } = req.body;
+      const result = await otpService.requestPasswordReset(email);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // POST /api/v1/auth/reset-password
+  async resetPassword(req, res, next) {
+    try {
+      const result = await otpService.resetPassword(req.body);
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

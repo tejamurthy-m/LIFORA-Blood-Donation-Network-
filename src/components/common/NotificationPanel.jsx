@@ -2,19 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, Check, Trash2, AlertTriangle, CheckCircle, Clock, X, ShieldCheck } from 'lucide-react';
 import { notificationService } from '../../services/notificationService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function NotificationPanel({ isOpen, onClose }) {
   const [notifications, setNotifications] = useState([]);
+  const { user } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
+      setNotifications([]);
       notificationService.getNotifications().then((res) => {
         if (res && Array.isArray(res.notifications)) {
           setNotifications(res.notifications);
         }
       });
     }
-  }, [isOpen]);
+  }, [isOpen, user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 

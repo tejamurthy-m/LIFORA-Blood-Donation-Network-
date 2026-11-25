@@ -11,12 +11,14 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { notificationService } from '../../services/notificationService';
 
 export default function UserNotificationsView() {
   const [items, setItems] = useState([]);
   const [filter, setFilter] = useState('all'); // 'all' | 'unread' | 'emergency'
   const { addToast } = useToast();
+  const { user } = useAuth();
 
   const fetchNotifications = async () => {
     try {
@@ -30,10 +32,11 @@ export default function UserNotificationsView() {
   };
 
   useEffect(() => {
+    setItems([]);
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 4000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user?.id]);
 
   const filtered = items.filter((item) => {
     if (filter === 'unread') return !item.read;

@@ -3,8 +3,14 @@ import { motion } from 'framer-motion';
 import { MapPin, Send, Eye, ShieldCheck, Heart } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
-export default function DonorCard({ donor, onViewProfile, onSendRequest }) {
+export default function DonorCard({ donor, onViewProfile, onSendRequest, currentUserId }) {
   const isAvailable = donor.isAvailable;
+  const isSelf = Boolean(
+    currentUserId &&
+      (donor.userId === currentUserId ||
+        donor.id === currentUserId ||
+        (donor.user?.id && donor.user.id === currentUserId))
+  );
 
   return (
     <motion.div
@@ -99,16 +105,18 @@ export default function DonorCard({ donor, onViewProfile, onSendRequest }) {
 
         <button
           type="button"
-          onClick={() => onSendRequest && onSendRequest(donor)}
-          disabled={!isAvailable}
-          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold text-white shadow-sm transition-all ${
-            isAvailable
-              ? 'bg-[#C1123F] hover:bg-[#9E0E32] shadow-rose-900/10'
+          onClick={() => !isSelf && onSendRequest && onSendRequest(donor)}
+          disabled={!isAvailable || isSelf}
+          className={`flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl text-xs font-bold transition-all ${
+            isSelf
+              ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-default'
+              : isAvailable
+              ? 'bg-[#C1123F] hover:bg-[#9E0E32] text-white shadow-sm shadow-rose-900/10'
               : 'bg-slate-300 cursor-not-allowed text-slate-500'
           }`}
         >
           <Send className="w-3.5 h-3.5" />
-          Send Request
+          {isSelf ? 'Your Profile' : 'Send Request'}
         </button>
       </div>
     </motion.div>

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 import { authLimiter } from '../middleware/rateLimiter.js';
 import {
   validate,
@@ -18,6 +18,18 @@ router.post('/register', authLimiter, validate(registerSchema), authController.r
 router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/refresh-token', validate(refreshTokenSchema), authController.refreshToken);
 router.post('/logout', authController.logout);
+
+// Phone OTP routes
+router.post('/phone/send-otp', authLimiter, optionalAuthenticate, authController.sendPhoneOtp);
+router.post('/phone/verify-otp', authLimiter, optionalAuthenticate, authController.verifyPhoneOtp);
+
+// Email Verification routes
+router.post('/email/send-verification', authLimiter, optionalAuthenticate, authController.sendEmailVerification);
+router.post('/email/verify', authLimiter, optionalAuthenticate, authController.verifyEmail);
+
+// Password Reset routes
+router.post('/forgot-password', authLimiter, authController.forgotPassword);
+router.post('/reset-password', authLimiter, authController.resetPassword);
 
 // Protected routes (requires valid JWT Access Token)
 router.get('/me', authenticate, authController.getMe);

@@ -50,6 +50,8 @@ export default function FindDonorsPage() {
   const [profileModalDonor, setProfileModalDonor] = useState(null);
   const [requestModalDonor, setRequestModalDonor] = useState(null);
   const [hospitalName, setHospitalName] = useState('Lilavati Hospital, Mumbai');
+  const [patientName, setPatientName] = useState('');
+  const [requesterName, setRequesterName] = useState('');
   const [unitsNeeded, setUnitsNeeded] = useState(1);
   const [isEmergency, setIsEmergency] = useState(false);
   const [isSendingRequest, setIsSendingRequest] = useState(false);
@@ -122,6 +124,12 @@ export default function FindDonorsPage() {
     setSearchParams({});
   };
 
+  const openRequestModal = (donor) => {
+    setRequestModalDonor(donor);
+    setRequesterName(user?.name || user?.fullName || '');
+    setPatientName('');
+  };
+
   const handleSendDirectRequest = async (e) => {
     e.preventDefault();
     if (!requestModalDonor) return;
@@ -132,8 +140,8 @@ export default function FindDonorsPage() {
         hospitalName,
         unitsNeeded,
         isEmergency,
-        requester: user?.name || user?.fullName || 'Verified Patient',
-        patientName: user?.name || user?.fullName || 'Verified Patient',
+        requester: requesterName.trim() || user?.name || user?.fullName || 'Verified Patient Attendant',
+        patientName: patientName.trim() || requesterName.trim() || 'Emergency Patient',
       });
 
       addToast({
@@ -239,8 +247,9 @@ export default function FindDonorsPage() {
               <DonorCard
                 key={donor.id}
                 donor={donor}
+                currentUserId={user?.id}
                 onViewProfile={(d) => setProfileModalDonor(d)}
-                onSendRequest={(d) => setRequestModalDonor(d)}
+                onSendRequest={(d) => openRequestModal(d)}
               />
             ))}
           </div>
@@ -251,8 +260,9 @@ export default function FindDonorsPage() {
             <DonorCard
               key={donor.id}
               donor={donor}
+              currentUserId={user?.id}
               onViewProfile={(d) => setProfileModalDonor(d)}
-              onSendRequest={(d) => setRequestModalDonor(d)}
+              onSendRequest={(d) => openRequestModal(d)}
             />
           ))}
         </div>
@@ -371,6 +381,36 @@ export default function FindDonorsPage() {
           maxWidth="max-w-md"
         >
           <form onSubmit={handleSendDirectRequest} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-[#172033] mb-1.5">
+                  Patient Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  placeholder="e.g. Ramesh Sharma"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[#172033] mb-1.5">
+                  Your Name (Attendant / Requester)
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={requesterName}
+                  onChange={(e) => setRequesterName(e.target.value)}
+                  placeholder="e.g. Priya Sharma"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-[#172033] mb-1.5">
                 Hospital Name & Location

@@ -6,6 +6,7 @@ import {
   REVERSE_BLOOD_GROUP_MAP,
 } from '../validators/auth.validator.js';
 import { emitToHospital, emitToRequest, emitToUser } from '../config/socket.js';
+import { emailService } from './email.service.js';
 
 export const STAFF_ROLE_LABELS = {
   HOSPITAL_ADMIN: 'Hospital Admin',
@@ -246,8 +247,39 @@ export const hospitalService = {
 
     const completeStaff = await prisma.hospitalStaff.findUnique({
       where: { id: result.id },
-      include: { user: true },
+      include: { user: true, hospital: true },
     });
+
+    // Create In-App Notification for newly invited staff
+    await prisma.notification.create({
+      data: {
+        userId: completeStaff.userId,
+        type: 'STAFF_INVITE',
+        title: 'Hospital Staff Access Granted 🏥',
+        message: `You have been added as ${STAFF_ROLE_LABELS[completeStaff.role] || completeStaff.role} for ${completeStaff.hospital?.name || 'the Hospital'}.`,
+        metadata: {
+          hospitalId,
+          hospitalName: completeStaff.hospital?.name,
+          role: completeStaff.role,
+          department: completeStaff.department,
+        },
+      },
+    }).catch(() => {});
+
+    emitToUser(completeStaff.userId, 'notification:received', {
+      type: 'STAFF_INVITE',
+      title: 'Hospital Staff Access Granted 🏥',
+      message: `You have been added as ${STAFF_ROLE_LABELS[completeStaff.role] || completeStaff.role}.`,
+    });
+
+    // Send Onboarding Email with credentials
+    await emailService.sendStaffInvitation({
+      staffEmail: completeStaff.user.email,
+      staffName: completeStaff.user.fullName,
+      hospitalName: completeStaff.hospital?.name || 'Hospital Transfusion Unit',
+      roleLabel: STAFF_ROLE_LABELS[completeStaff.role] || completeStaff.role,
+      temporaryPassword: password || 'hospital123',
+    }).catch(() => {});
 
     return {
       id: completeStaff.id,

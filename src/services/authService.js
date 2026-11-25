@@ -225,6 +225,80 @@ export const authService = {
     return updated;
   },
 
+  // Phone OTP dispatch
+  async sendPhoneOtp(phone) {
+    try {
+      const res = await api.post('/auth/phone/send-otp', { phone });
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Failed to dispatch phone OTP.');
+    }
+  },
+
+  // Phone OTP verification
+  async verifyPhoneOtp(phone, otp) {
+    try {
+      const res = await api.post('/auth/phone/verify-otp', { phone, otp });
+      if (res.data?.success) {
+        const current = this.getCurrentUser();
+        if (current) {
+          const updated = { ...current, isPhoneVerified: true };
+          localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
+        }
+      }
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Invalid or expired OTP code.');
+    }
+  },
+
+  // Email verification dispatch
+  async sendEmailVerification(email) {
+    try {
+      const res = await api.post('/auth/email/send-verification', { email });
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Failed to send email verification.');
+    }
+  },
+
+  // Email verification confirm
+  async verifyEmailCode(email, code) {
+    try {
+      const res = await api.post('/auth/email/verify', { email, code });
+      if (res.data?.success) {
+        const current = this.getCurrentUser();
+        if (current) {
+          const updated = { ...current, isEmailVerified: true };
+          localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
+        }
+      }
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Invalid verification code.');
+    }
+  },
+
+  // Password reset request
+  async forgotPassword(email) {
+    try {
+      const res = await api.post('/auth/forgot-password', { email });
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Failed to send password reset instructions.');
+    }
+  },
+
+  // Password reset execution
+  async resetPassword({ email, token, resetCode, newPassword }) {
+    try {
+      const res = await api.post('/auth/reset-password', { email, token, resetCode, newPassword });
+      return res.data;
+    } catch (e) {
+      throw new Error(e.response?.data?.error?.message || e.message || 'Password reset failed.');
+    }
+  },
+
   // Logout
   logout() {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
