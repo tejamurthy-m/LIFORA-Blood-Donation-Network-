@@ -2,6 +2,7 @@ import { Server } from 'socket.io';
 import { verifyAccessToken } from '../utils/token.js';
 import { logger } from './logger.js';
 import { config } from './environment.js';
+import { prisma } from './prisma.js';
 
 let io = null;
 
@@ -16,20 +17,43 @@ export const initSocketServer = (httpServer) => {
   });
 
   // Authentication Middleware for Sockets
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     try {
       const token =
         socket.handshake.auth?.token ||
         socket.handshake.headers?.authorization?.replace('Bearer ', '');
 
       if (token) {
-        try {
-          const decoded = verifyAccessToken(token);
-          socket.user = decoded;
-        } catch (err) {
-          logger.warn(`Socket connection with invalid token: ${err.message}`);
-          // Don't fail connection - allow guest for public tracking, but mark unauthenticated
-          socket.user = null;
+        if (
+          process.env.NODE_ENV !== 'production' &&
+          (token.startsWith('jwt_demo_') || token.startsWith('jwt_mock_'))
+        ) {
+          const email = token.includes('donor')
+            ? 'donor@lifora.org'
+            : token.includes('hospital')
+            ? 'hospital@lifora.org'
+            : token.includes('recipient')
+            ? 'recipient@lifora.org'
+            : token.includes('super')
+            ? 'admin@lifora.org'
+            : 'tejamurthycng@gmail.com';
+
+          try {
+            const user = await prisma.user.findFirst({ where: { email } });
+            socket.user = user
+              ? { userId: user.id, role: user.role, email: user.email }
+              : { userId: token, role: 'DONOR' };
+          } catch {
+            socket.user = { userId: token, role: 'DONOR' };
+          }
+        } else {
+          try {
+            const decoded = verifyAccessToken(token);
+            socket.user = decoded;
+          } catch (err) {
+            logger.warn(`Socket connection with invalid token: ${err.message}`);
+            socket.user = null;
+          }
         }
       } else {
         socket.user = null;

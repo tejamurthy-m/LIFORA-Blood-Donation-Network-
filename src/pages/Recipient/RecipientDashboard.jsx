@@ -75,6 +75,22 @@ export default function RecipientDashboard() {
     }
   };
 
+  const handleCancelRequest = async (id) => {
+    try {
+      await requestService.updateStatus(id, 'Cancelled');
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'Cancelled' } : r))
+      );
+      addToast({
+        title: 'Request Cancelled',
+        message: 'The blood requisition has been withdrawn and live dispatch stopped.',
+        type: 'info',
+      });
+    } catch {
+      addToast({ title: 'Error', message: 'Could not cancel request.', type: 'error' });
+    }
+  };
+
   const totalRequests = requests.length;
   const activeRequests = requests.filter((r) => r.status !== 'Fulfilled').length;
   const totalResponses = requests.reduce((acc, r) => acc + (r.donorResponses || 0), 0);
@@ -218,15 +234,24 @@ export default function RecipientDashboard() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <StatusBadge status={req.status} size="sm" />
-                  {req.status !== 'Fulfilled' && (
+                  {req.status !== 'Fulfilled' && req.status !== 'Cancelled' && (
                     <button
                       type="button"
                       onClick={() => handleMarkFulfilled(req.id)}
                       className="px-3 py-1.5 rounded-xl bg-emerald-50 text-[#16A36A] hover:bg-emerald-100 font-bold text-xs transition-colors cursor-pointer"
                     >
                       Mark Completed
+                    </button>
+                  )}
+                  {req.status !== 'Fulfilled' && req.status !== 'Cancelled' && (
+                    <button
+                      type="button"
+                      onClick={() => handleCancelRequest(req.id)}
+                      className="px-3 py-1.5 rounded-xl bg-rose-50 text-[#C1123F] hover:bg-rose-100 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Cancel Request
                     </button>
                   )}
                 </div>

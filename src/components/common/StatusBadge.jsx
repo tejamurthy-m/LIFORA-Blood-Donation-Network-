@@ -51,10 +51,10 @@ export default function StatusBadge({ status, type = 'status', className = '', s
     if (isAvail) {
       return (
         <span
-          className={`inline-flex items-center font-semibold rounded-full bg-emerald-50 text-[#16A36A] border border-emerald-200 ${sizeClasses} ${className}`}
+          className={`inline-flex items-center font-bold tracking-tight rounded-full bg-emerald-50 text-[#16A36A] border border-emerald-200/80 whitespace-nowrap shrink-0 ${sizeClasses} ${className}`}
         >
-          <span className="w-2 h-2 rounded-full bg-[#16A36A]" />
-          Available Now
+          <span className="w-1.5 h-1.5 rounded-full bg-[#16A36A] shrink-0" />
+          <span className="whitespace-nowrap">Available</span>
         </span>
       );
     }

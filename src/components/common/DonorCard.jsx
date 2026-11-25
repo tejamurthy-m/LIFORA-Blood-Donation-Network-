@@ -17,36 +17,38 @@ export default function DonorCard({ donor, onViewProfile, onSendRequest }) {
 
       <div>
         {/* Header row: Blood group & Status */}
-        <div className="flex items-start justify-between gap-2.5 pt-1">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-[#F04462] to-[#C1123F] text-white flex flex-col items-center justify-center font-extrabold shadow-sm shadow-[#C1123F]/25 shrink-0">
-              <span className="text-xl leading-none">{donor.bloodGroup}</span>
+        <div className="flex items-start justify-between gap-2 pt-1">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#F04462] to-[#C1123F] text-white flex flex-col items-center justify-center font-extrabold shadow-sm shadow-[#C1123F]/25 shrink-0">
+              <span className="text-lg leading-none">{donor.bloodGroup}</span>
               <span className="text-[9px] font-normal tracking-wide opacity-80 uppercase mt-0.5">Type</span>
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <h3 className="font-bold text-[#172033] text-base truncate">
+              <div className="flex items-center gap-1">
+                <h3 className="font-bold text-[#172033] text-sm sm:text-base truncate">
                   {donor.name || donor.privacySafeName || 'Anonymous Donor'}
                 </h3>
                 {donor.verified && (
                   <ShieldCheck className="w-4 h-4 text-[#C1123F] shrink-0" title="Identity & Blood Test Verified" />
                 )}
               </div>
-              <div className="flex items-center gap-1 text-xs text-[#64748B] mt-0.5 overflow-hidden">
+              <div className="flex items-center gap-1 text-xs text-[#64748B] mt-0.5">
                 <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                 <span className="truncate">{donor.area ? `${donor.area}, ${donor.city}` : donor.city}</span>
                 {donor.distanceKm !== undefined && (
                   <>
                     <span className="text-slate-300 shrink-0">•</span>
-                    <span className="font-medium text-slate-600 shrink-0">~{donor.distanceKm} km away</span>
+                    <span className="font-medium text-slate-600 shrink-0 whitespace-nowrap">~{donor.distanceKm} km</span>
                   </>
                 )}
               </div>
             </div>
           </div>
 
-          <StatusBadge status={isAvailable ? 'Available' : 'Unavailable'} type="availability" size="sm" className="shrink-0" />
+          <div className="shrink-0 pl-1">
+            <StatusBadge status={isAvailable ? 'Available' : 'Unavailable'} type="availability" size="sm" />
+          </div>
         </div>
 
         {/* Badges / recognition tag */}

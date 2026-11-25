@@ -65,7 +65,7 @@ export const formatDonorRecord = (donorProfile, refLat = null, refLng = null) =>
     area: donorProfile.user?.area || 'Central Area',
     lat: donorCoords.lat,
     lng: donorCoords.lng,
-    distanceKm: distanceKm != null ? distanceKm : 3.5,
+    distanceKm: distanceKm != null ? distanceKm : null,
     isAvailable: donorProfile.isAvailable,
     emergencyReady: donorProfile.emergencyReady,
     badge: donorProfile.badge || 'Verified Donor',
