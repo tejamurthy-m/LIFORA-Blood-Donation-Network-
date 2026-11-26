@@ -21,13 +21,14 @@ export const createApp = () => {
     'http://localhost:5173',
     'http://localhost:3000',
     'http://127.0.0.1:5173',
+    'https://lifora-blood-donation-network.vercel.app',
   ];
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps, curl, postman)
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow requests with no origin (like mobile apps, curl, postman) or vercel deployments
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
           callback(null, true);
         } else {
           callback(new Error(`Origin ${origin} not permitted by CORS`));
