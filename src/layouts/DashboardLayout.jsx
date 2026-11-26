@@ -53,10 +53,12 @@ export default function DashboardLayout({ title }) {
     fetchUnread();
     const interval = setInterval(fetchUnread, 4000);
     window.addEventListener('lifora:new_notification', fetchUnread);
+    window.addEventListener('storage', fetchUnread);
     return () => {
       isMounted = false;
       clearInterval(interval);
       window.removeEventListener('lifora:new_notification', fetchUnread);
+      window.removeEventListener('storage', fetchUnread);
     };
   }, [user]);
 

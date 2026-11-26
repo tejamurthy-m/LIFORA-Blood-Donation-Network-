@@ -97,6 +97,7 @@ export const INITIAL_USERS = [
 export const INITIAL_DONORS = [
   {
     id: 'donor-1',
+    userId: 'user_donor_1',
     name: 'Aryan S.',
     fullName: 'Dr. Aryan Sharma',
     bloodGroup: 'O+',

@@ -22,8 +22,10 @@ export default function NotificationPanel({ isOpen, onClose }) {
     }
 
     window.addEventListener('lifora:new_notification', loadNotifs);
+    window.addEventListener('storage', loadNotifs);
     return () => {
       window.removeEventListener('lifora:new_notification', loadNotifs);
+      window.removeEventListener('storage', loadNotifs);
     };
   }, [isOpen, user?.id]);
 

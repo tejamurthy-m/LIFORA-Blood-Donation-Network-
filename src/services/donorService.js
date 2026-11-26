@@ -135,15 +135,27 @@ export const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
 
 export const getStoredDonors = () => {
   const stored = localStorage.getItem(DONORS_STORAGE_KEY);
+  let donors;
   if (!stored) {
-    localStorage.setItem(DONORS_STORAGE_KEY, JSON.stringify(INITIAL_DONORS));
-    return INITIAL_DONORS;
+    donors = INITIAL_DONORS;
+  } else {
+    try {
+      donors = JSON.parse(stored);
+      if (!Array.isArray(donors)) donors = INITIAL_DONORS;
+    } catch {
+      donors = INITIAL_DONORS;
+    }
   }
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return INITIAL_DONORS;
-  }
+
+  // Ensure Dr. Aryan Sharma and known seeds have proper userId linked
+  donors = donors.map((d) => {
+    if (d.id === 'donor-1' || d.fullName?.includes('Aryan') || d.name?.includes('Aryan')) {
+      return { ...d, userId: d.userId || 'user_donor_1' };
+    }
+    return d;
+  });
+
+  return donors;
 };
 
 export const saveStoredDonors = (donors) => {
