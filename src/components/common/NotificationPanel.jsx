@@ -34,8 +34,9 @@ export default function NotificationPanel({ isOpen, onClose }) {
     await notificationService.markAllAsRead();
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     setNotifications([]);
+    await notificationService.clearAll();
   };
 
   return (

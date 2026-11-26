@@ -54,16 +54,18 @@ export default function UserNotificationsView() {
     addToast({ title: 'Marked All as Read', message: 'All notifications cleared.', type: 'info' });
   };
 
-  const clearAll = () => {
+  const clearAll = async () => {
     setItems([]);
+    await notificationService.clearAll();
     addToast({ title: 'Cleared', message: 'Notification queue cleared.', type: 'info' });
   };
 
-  const toggleItemRead = async (id) => {
+  const toggleItemRead = async (item) => {
+    const nextRead = !item.read;
     setItems((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, read: !item.read } : item))
+      prev.map((i) => (i.id === item.id ? { ...i, read: nextRead } : i))
     );
-    await notificationService.markAsRead(id);
+    await notificationService.markAsRead(item.id, nextRead);
   };
 
   const deleteItem = async (id) => {
@@ -211,7 +213,7 @@ export default function UserNotificationsView() {
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button
                   type="button"
-                  onClick={() => toggleItemRead(item.id)}
+                  onClick={() => toggleItemRead(item)}
                   className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
                   title={item.read ? 'Mark as Unread' : 'Mark as Read'}
                 >

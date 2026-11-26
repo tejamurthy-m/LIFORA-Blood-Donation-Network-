@@ -82,8 +82,9 @@ export default function FindDonorsPage() {
       .then((data) => {
         if (isMounted) {
           const maxDist = parseFloat(filters.maxDistance);
+          const shouldFilterDistance = filters.city && filters.city !== 'ALL';
           const filtered =
-            !isNaN(maxDist) && maxDist > 0 && Array.isArray(data)
+            shouldFilterDistance && !isNaN(maxDist) && maxDist > 0 && Array.isArray(data)
               ? data.filter((d) => d.distanceKm != null && d.distanceKm <= maxDist)
               : data;
           setDonors(filtered || []);

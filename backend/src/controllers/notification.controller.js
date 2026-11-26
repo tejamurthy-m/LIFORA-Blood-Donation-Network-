@@ -42,11 +42,12 @@ export const notificationController = {
     }
   },
 
-  // Mark single notification as read
+  // Mark single notification as read (or toggle)
   async markAsRead(req, res, next) {
     try {
       const userId = req.user.id;
       const { id } = req.params;
+      const isRead = req.body?.isRead !== undefined ? Boolean(req.body.isRead) : true;
 
       const notification = await prisma.notification.findUnique({
         where: { id },
@@ -58,12 +59,12 @@ export const notificationController = {
 
       const updated = await prisma.notification.update({
         where: { id },
-        data: { isRead: true },
+        data: { isRead },
       });
 
       res.status(200).json({
         success: true,
-        message: 'Notification marked as read.',
+        message: isRead ? 'Notification marked as read.' : 'Notification marked as unread.',
         data: updated,
       });
     } catch (error) {
@@ -84,6 +85,51 @@ export const notificationController = {
       res.status(200).json({
         success: true,
         message: 'All notifications marked as read.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Delete single notification
+  async deleteNotification(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const { id } = req.params;
+
+      const notification = await prisma.notification.findUnique({
+        where: { id },
+      });
+
+      if (!notification || notification.userId !== userId) {
+        throw new ApiError(404, 'Notification not found.', 'NOTIFICATION_NOT_FOUND');
+      }
+
+      await prisma.notification.delete({
+        where: { id },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Notification removed successfully.',
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  // Clear all notifications for user
+  async clearAll(req, res, next) {
+    try {
+      const userId = req.user.id;
+
+      await prisma.notification.deleteMany({
+        where: { userId },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'All notifications cleared.',
       });
     } catch (error) {
       next(error);

@@ -92,7 +92,9 @@ export default function RecipientDashboard() {
   };
 
   const totalRequests = requests.length;
-  const activeRequests = requests.filter((r) => r.status !== 'Fulfilled').length;
+  const activeRequests = requests.filter(
+    (r) => r.status !== 'Fulfilled' && r.status !== 'Cancelled' && r.status !== 'Closed'
+  ).length;
   const totalResponses = requests.reduce((acc, r) => acc + (r.donorResponses || 0), 0);
   const fulfilledCount = requests.filter((r) => r.status === 'Fulfilled').length;
 
