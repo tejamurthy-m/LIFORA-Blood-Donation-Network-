@@ -62,13 +62,6 @@ export default function UserProfileView() {
         message: res.message || 'Verification code sent to your phone number.',
         type: 'info',
       });
-      if (res.devOtp) {
-        addToast({
-          title: 'Development Test OTP',
-          message: `Code: ${res.devOtp}`,
-          type: 'warning',
-        });
-      }
     } catch (err) {
       addToast({
         title: 'OTP Dispatch Failed',
@@ -115,13 +108,6 @@ export default function UserProfileView() {
         message: res.message || '6-digit verification code sent to your inbox.',
         type: 'info',
       });
-      if (res.devCode) {
-        addToast({
-          title: 'Development Test Code',
-          message: `Code: ${res.devCode}`,
-          type: 'warning',
-        });
-      }
     } catch (err) {
       addToast({
         title: 'Dispatch Failed',

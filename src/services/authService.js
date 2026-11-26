@@ -363,28 +363,12 @@ export const authService = {
       if (e.response?.data?.error?.message) {
         throw new Error(e.response.data.error.message);
       }
-      console.warn('Backend sendPhoneOtp unreachable, using client fallback:', e.message);
-      await simulatedDelay(250);
-      const devOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
-      try {
-        localStorage.setItem(
-          'lifora_pending_phone_otp',
-          JSON.stringify({
-            phone: cleanPhone,
-            code: devOtp,
-            expiresAt: Date.now() + 5 * 60 * 1000,
-          })
-        );
-      } catch {}
-
-      return {
-        success: true,
-        message: `Verification code sent to ${phone}. Valid for 5 minutes.`,
-        devOtp,
-        expiresIn: 300,
-        resendAvailableIn: 60,
-      };
+      console.error('Backend sendPhoneOtp unreachable:', e.message);
+      throw new Error(
+        'Unable to reach LIFORA backend server at ' +
+          (api.defaults.baseURL || 'http://localhost:5000/api') +
+          '. Please verify the backend is running and accessible.'
+      );
     }
   },
 
@@ -424,41 +408,10 @@ export const authService = {
       if (e.response?.data?.error?.message) {
         throw new Error(e.response.data.error.message);
       }
-      console.warn('Backend verifyPhoneOtp unreachable, checking client fallback:', e.message);
-      await simulatedDelay(200);
-      const cleanPhone = (phone || '').replace(/\D/g, '').slice(-10);
-      const trimmedOtp = (otp || '').trim();
-
-      let isValid = false;
-      try {
-        const raw = localStorage.getItem('lifora_pending_phone_otp');
-        if (raw) {
-          const entry = JSON.parse(raw);
-          if (entry.phone === cleanPhone && (entry.code === trimmedOtp || trimmedOtp === '123456')) {
-            isValid = true;
-            localStorage.removeItem('lifora_pending_phone_otp');
-          }
-        }
-      } catch {}
-
-      if (!isValid && (trimmedOtp === '123456' || trimmedOtp.length === 6)) {
-        isValid = true;
-      }
-
-      if (isValid) {
-        const current = this.getCurrentUser();
-        if (current) {
-          const updated = { ...current, isPhoneVerified: true };
-          localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
-        }
-        return {
-          success: true,
-          message: 'Phone number verified successfully.',
-          verified: true,
-        };
-      }
-
-      throw new Error('Invalid or expired OTP code. Use the code sent or 123456.');
+      console.error('Backend verifyPhoneOtp unreachable:', e.message);
+      throw new Error(
+        'Unable to reach LIFORA backend server. Please verify the backend is running and accessible.'
+      );
     }
   },
 

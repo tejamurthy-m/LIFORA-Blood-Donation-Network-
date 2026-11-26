@@ -35,7 +35,6 @@ export default function OtpModal({
   onVerifyOtp,
   isSending = false,
   isVerifying = false,
-  devOtp = '',
 }) {
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const [countdown, setCountdown] = useState(60);
@@ -249,26 +248,6 @@ export default function OtpModal({
                 </button>
               )}
             </div>
-
-            {/* Dev Mode Banner (Only shown if local dev/test OTP is present) */}
-            {devOtp && (
-              <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between">
-                <span className="font-mono text-[11px]">
-                  <strong>[Local Demo OTP]:</strong> {devOtp}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const otpArr = devOtp.slice(0, 6).split('');
-                    setDigits(otpArr);
-                    if (inputRefs.current[5]) inputRefs.current[5].focus();
-                  }}
-                  className="text-[11px] font-bold text-amber-800 underline hover:text-amber-950 cursor-pointer"
-                >
-                  Auto-fill
-                </button>
-              </div>
-            )}
 
             {/* Error Banner */}
             {errorMsg && (
