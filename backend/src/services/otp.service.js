@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../config/prisma.js';
 import { ApiError } from '../middleware/errorHandler.js';
 import { emailService } from './email.service.js';
+import { smsService } from './sms.service.js';
 import { logger } from '../config/logger.js';
 
 // In-memory store with automatic TTL cleanup
@@ -47,11 +48,22 @@ export const otpService = {
 
     logger.info(`[PHONE_OTP] Generated OTP for ${cleanPhone} (key: ${phoneKey}): ${code} (expires in 10m)`);
 
+    // Dispatch via SMS gateway (Twilio / Fast2SMS if configured, otherwise logs to console)
+    const smsResult = await smsService.sendPhoneOtp({
+      phone: cleanPhone,
+      otpCode: code,
+    });
+
+    const isRealSmsSent = !smsResult.simulated && smsResult.success;
+
     return {
       success: true,
-      message: `OTP sent to ${cleanPhone}. Valid for 10 minutes.`,
-      // Expose OTP in development for immediate testability without SMS gateway charges
-      ...(process.env.NODE_ENV !== 'production' ? { devOtp: code } : {}),
+      message: isRealSmsSent
+        ? `OTP sent to ${cleanPhone} via SMS. Valid for 10 minutes.`
+        : `OTP dispatched to ${cleanPhone}. Valid for 10 minutes.`,
+      smsDelivered: isRealSmsSent,
+      // Expose OTP in development simulator if no real SMS provider is active
+      ...(!isRealSmsSent && process.env.NODE_ENV !== 'production' ? { devOtp: code } : {}),
     };
   },
 
