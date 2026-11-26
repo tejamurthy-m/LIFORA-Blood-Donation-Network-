@@ -33,4 +33,17 @@ export const config = {
     secure: process.env.SMTP_SECURE === 'true',
     from: process.env.EMAIL_FROM || 'LIFORA Blood Network <support@lifora.org>',
   },
+
+  smsGateway: {
+    url: (process.env.SMS_GATEWAY_URL || '').replace(/\/+$/, ''),
+    username: process.env.SMS_GATEWAY_USERNAME || '',
+    password: process.env.SMS_GATEWAY_PASSWORD || '',
+    deviceId: process.env.SMS_GATEWAY_DEVICE_ID || '',
+    otpExpiryMinutes: parseInt(process.env.OTP_EXPIRY_MINUTES, 10) || 5,
+    otpLength: parseInt(process.env.OTP_LENGTH, 10) || 6,
+    otpMaxAttempts: parseInt(process.env.OTP_MAX_ATTEMPTS, 10) || 5,
+    otpResendCooldownSeconds: parseInt(process.env.OTP_RESEND_COOLDOWN_SECONDS, 10) || 60,
+    otpMaxRequestsPerHour: parseInt(process.env.OTP_MAX_REQUESTS_PER_HOUR, 10) || 5,
+    demoMode: process.env.OTP_DEMO_MODE === 'true',
+  },
 };

@@ -50,6 +50,34 @@ export const registerSchema = z.object({
   hospitalName: z.string().optional(),
 });
 
+export const sendOtpSchema = z.object({
+  phoneNumber: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  phone: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  purpose: z.enum(['REGISTRATION', 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET']).optional().default('REGISTRATION'),
+}).refine((data) => data.phoneNumber || data.phone, {
+  message: 'Phone number is required.',
+  path: ['phoneNumber'],
+});
+
+export const verifyOtpSchema = z.object({
+  phoneNumber: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  phone: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  otp: z.string().min(4, 'OTP code is required.').max(8, 'OTP code cannot exceed 8 characters.'),
+  purpose: z.enum(['REGISTRATION', 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET']).optional().default('REGISTRATION'),
+}).refine((data) => data.phoneNumber || data.phone, {
+  message: 'Phone number is required.',
+  path: ['phoneNumber'],
+});
+
+export const resendOtpSchema = z.object({
+  phoneNumber: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  phone: z.string().min(8, 'Phone number must be at least 8 digits.').optional(),
+  purpose: z.enum(['REGISTRATION', 'PHONE_VERIFICATION', 'LOGIN', 'PASSWORD_RESET']).optional().default('REGISTRATION'),
+}).refine((data) => data.phoneNumber || data.phone, {
+  message: 'Phone number is required.',
+  path: ['phoneNumber'],
+});
+
 export const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(1, 'Password is required.'),
@@ -79,7 +107,8 @@ export const validate = (schema) => (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const details = error.errors.map((e) => ({
+      const issues = error.errors || error.issues || [];
+      const details = issues.map((e) => ({
         field: e.path.join('.'),
         message: e.message,
       }));

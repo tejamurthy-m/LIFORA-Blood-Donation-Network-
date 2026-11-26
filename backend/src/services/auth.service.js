@@ -12,6 +12,8 @@ import {
   BLOOD_GROUP_MAP,
   REVERSE_BLOOD_GROUP_MAP,
 } from '../validators/auth.validator.js';
+import { otpService } from './otp.service.js';
+import { normalizePhoneNumber } from './sms.service.js';
 
 // Format user object to maintain complete backwards compatibility with existing frontend UI
 export const formatUserResponse = (user) => {
@@ -86,6 +88,10 @@ export const authService = {
     } = payload;
 
     const normalizedEmail = email.toLowerCase().trim();
+    let normalizedPhone = phone.trim();
+    try {
+      normalizedPhone = normalizePhoneNumber(phone);
+    } catch {}
 
     // Check duplicate email
     const existingEmail = await prisma.user.findUnique({
@@ -95,12 +101,40 @@ export const authService = {
       throw new ApiError(400, 'An account with this email address already exists.', 'EMAIL_EXISTS');
     }
 
-    // Check duplicate phone
-    const existingPhone = await prisma.user.findUnique({
-      where: { phone: phone.trim() },
+    // Check duplicate phone (across formats)
+    const existingPhone = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { phone: phone.trim() },
+          { phone: normalizedPhone },
+          ...(normalizedPhone.length >= 10 ? [{ phone: { contains: normalizedPhone.slice(-10) } }] : []),
+        ],
+      },
     });
     if (existingPhone) {
       throw new ApiError(400, 'An account with this phone number already exists.', 'PHONE_EXISTS');
+    }
+
+    // Validate phone verification via SMS OTP
+    const isPreVerified = await otpService.isPhoneVerifiedForRegistration(normalizedPhone);
+    let phoneVerified = isPreVerified || Boolean(payload.isPhoneVerified);
+
+    if (payload.otp) {
+      await otpService.verifyPhoneOtp({
+        phone: normalizedPhone,
+        otp: payload.otp,
+        purpose: 'REGISTRATION',
+      });
+      phoneVerified = true;
+    }
+
+    // In production mode, require phone verification
+    if (!phoneVerified && process.env.NODE_ENV === 'production') {
+      throw new ApiError(
+        400,
+        'Mobile phone number must be verified via SMS OTP prior to registration.',
+        'PHONE_NOT_VERIFIED'
+      );
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -167,7 +201,7 @@ export const authService = {
           role: roleUpper,
           city: city.trim(),
           area: area ? area.trim() : null,
-          isPhoneVerified: Boolean(payload.isPhoneVerified),
+          isPhoneVerified: phoneVerified,
         },
       });
 
@@ -245,6 +279,9 @@ export const authService = {
         expiresAt,
       },
     });
+
+    // Invalidate and consume the registration OTP
+    await otpService.consumeRegistrationOtp(normalizedPhone);
 
     return {
       user: formatUserResponse(completeUser),

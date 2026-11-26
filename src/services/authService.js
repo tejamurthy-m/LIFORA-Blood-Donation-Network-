@@ -346,16 +346,23 @@ export const authService = {
   },
 
   // Phone OTP dispatch with resilient backend + client fallback
-  async sendPhoneOtp(phone) {
+  async sendPhoneOtp(phone, purpose = 'REGISTRATION') {
     try {
-      const res = await api.post('/auth/phone/send-otp', { phone });
+      let res;
+      try {
+        res = await api.post('/auth/send-otp', { phoneNumber: phone, purpose });
+      } catch (err) {
+        if (err.response?.status === 404) {
+          res = await api.post('/auth/phone/send-otp', { phone, purpose });
+        } else {
+          throw err;
+        }
+      }
       return res.data;
     } catch (e) {
-      // If backend explicitly rejected with a business validation error (e.g. invalid phone format), bubble it
       if (e.response?.data?.error?.message) {
         throw new Error(e.response.data.error.message);
       }
-      // If network unreachable, offline, or hosted on static Vercel without backend proxy
       console.warn('Backend sendPhoneOtp unreachable, using client fallback:', e.message);
       await simulatedDelay(250);
       const devOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -366,23 +373,45 @@ export const authService = {
           JSON.stringify({
             phone: cleanPhone,
             code: devOtp,
-            expiresAt: Date.now() + 10 * 60 * 1000,
+            expiresAt: Date.now() + 5 * 60 * 1000,
           })
         );
       } catch {}
 
       return {
         success: true,
-        message: `Verification code sent to ${phone}. Valid for 10 minutes.`,
+        message: `Verification code sent to ${phone}. Valid for 5 minutes.`,
         devOtp,
+        expiresIn: 300,
+        resendAvailableIn: 60,
       };
     }
   },
 
-  // Phone OTP verification with resilient backend + client fallback
-  async verifyPhoneOtp(phone, otp) {
+  // Resend Phone OTP
+  async resendPhoneOtp(phone, purpose = 'REGISTRATION') {
     try {
-      const res = await api.post('/auth/phone/verify-otp', { phone, otp });
+      const res = await api.post('/auth/resend-otp', { phoneNumber: phone, purpose });
+      return res.data;
+    } catch (e) {
+      return this.sendPhoneOtp(phone, purpose);
+    }
+  },
+
+  // Phone OTP verification with resilient backend + client fallback
+  async verifyPhoneOtp(phone, otp, purpose = 'REGISTRATION') {
+    try {
+      let res;
+      try {
+        res = await api.post('/auth/verify-otp', { phoneNumber: phone, otp, purpose });
+      } catch (err) {
+        if (err.response?.status === 404) {
+          res = await api.post('/auth/phone/verify-otp', { phone, otp, purpose });
+        } else {
+          throw err;
+        }
+      }
+
       if (res.data?.success) {
         const current = this.getCurrentUser();
         if (current) {
@@ -429,7 +458,7 @@ export const authService = {
         };
       }
 
-      throw new Error('Invalid or expired OTP code. Use the code shown or 123456.');
+      throw new Error('Invalid or expired OTP code. Use the code sent or 123456.');
     }
   },
 

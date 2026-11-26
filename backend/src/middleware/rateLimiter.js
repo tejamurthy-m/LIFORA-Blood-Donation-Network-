@@ -29,3 +29,18 @@ export const authLimiter = rateLimit({
     },
   },
 });
+
+// Dedicated rate limiter for SMS OTP generation and verification
+export const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV !== 'production' ? 100 : 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      message: 'Too many OTP requests from this connection. Please try again after 15 minutes.',
+      code: 'OTP_RATE_LIMIT_EXCEEDED',
+    },
+  },
+});

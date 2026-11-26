@@ -19,6 +19,7 @@ import {
   RotateCw,
 } from 'lucide-react';
 import LiforaLogo from '../../components/common/LiforaLogo';
+import OtpModal from '../../components/common/OtpModal';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { authService } from '../../services/authService';
@@ -54,6 +55,7 @@ export default function RegisterPage() {
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [devOtp, setDevOtp] = useState('');
   const [otpError, setOtpError] = useState('');
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
 
   // Hospital Specific Fields
   const [licenseNumber, setLicenseNumber] = useState('');
@@ -74,20 +76,21 @@ export default function RegisterPage() {
     setOtpError('');
     setIsSendingOtp(true);
     try {
-      const res = await authService.sendPhoneOtp(targetPhone);
+      const res = await authService.sendPhoneOtp(targetPhone, 'REGISTRATION');
       setOtpSent(true);
+      setIsOtpModalOpen(true);
       if (res?.devOtp) {
         setDevOtp(res.devOtp);
-        setPhoneOtp(res.devOtp); // Auto-fill for quick testing in dev
+        setPhoneOtp(res.devOtp);
         addToast({
           title: 'OTP Dispatched',
-          message: `Code sent to ${targetPhone}. [Test Code: ${res.devOtp}]`,
+          message: `Code dispatched to ${targetPhone} via Android SMS Gateway. [Test Code: ${res.devOtp}]`,
           type: 'info',
         });
       } else {
         addToast({
           title: 'OTP Dispatched',
-          message: `Verification code sent to ${targetPhone}. Valid for 10 minutes.`,
+          message: `Verification code queued for delivery to ${targetPhone} via SMS Gate.`,
           type: 'info',
         });
       }
@@ -95,6 +98,7 @@ export default function RegisterPage() {
     } catch (err) {
       const msg = err.message || 'Failed to dispatch phone verification OTP.';
       setOtpError(msg);
+      setError(msg);
       addToast({
         title: 'OTP Dispatch Failed',
         message: msg,
@@ -106,21 +110,25 @@ export default function RegisterPage() {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (!phoneOtp || phoneOtp.trim().length < 4) {
+  const handleVerifyOtp = async (customOtp = phoneOtp) => {
+    const code = customOtp || phoneOtp;
+    if (!code || code.trim().length < 4) {
       setOtpError('Please enter the 6-digit verification code.');
-      return false;
+      throw new Error('Please enter the 6-digit verification code.');
     }
     setOtpError('');
     setIsVerifyingOtp(true);
     try {
-      await authService.verifyPhoneOtp(phone, phoneOtp);
+      await authService.verifyPhoneOtp(phone, code, 'REGISTRATION');
       setIsPhoneVerified(true);
+      setIsOtpModalOpen(false);
       addToast({
         title: 'Phone Verified ✓',
-        message: 'Your phone number has been verified successfully.',
+        message: 'Your mobile number has been verified successfully.',
         type: 'success',
       });
+      // Complete registration after successful OTP verification
+      await executeRegistration(true);
       return true;
     } catch (err) {
       const msg = err.message || 'Invalid or expired OTP code.';
@@ -130,70 +138,15 @@ export default function RegisterPage() {
         message: msg,
         type: 'error',
       });
-      return false;
+      throw err;
     } finally {
       setIsVerifyingOtp(false);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (!fullName.trim()) {
-      setError(role === 'hospital' ? 'Please enter the hospital / institution name.' : 'Please enter your full name.');
-      return;
-    }
-    if (!email.trim() || !email.includes('@')) {
-      setError('Please provide a valid official email address.');
-      return;
-    }
-    if (!phone.trim() || phone.length < 8) {
-      setError('Please provide a valid contact number.');
-      return;
-    }
-    if (role === 'hospital') {
-      if (!licenseNumber.trim()) {
-        setError('Please provide your state blood bank license number (e.g. BB-LIC-MH-890).');
-        return;
-      }
-      if (!headName.trim()) {
-        setError('Please enter the name of the Blood Bank Medical Officer / Head.');
-        return;
-      }
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
-      return;
-    }
-    if (!agreed) {
-      setError('Please agree to the Terms of Service & Transfusion Safety Code.');
-      return;
-    }
-
-    // Require phone OTP verification for reliable account validation
-    if (!isPhoneVerified) {
-      if (!otpSent) {
-        const sent = await handleSendOtp(phone);
-        if (sent) {
-          setError('We have dispatched a verification code to your phone. Please enter the OTP to complete registration.');
-        }
-        return;
-      }
-      if (phoneOtp.trim().length >= 4) {
-        const verified = await handleVerifyOtp();
-        if (!verified) return;
-      } else {
-        setError('Please enter and verify the 6-digit OTP code sent to your phone number.');
-        return;
-      }
-    }
-
+  const executeRegistration = async (isVerified = false) => {
     setIsSubmitting(true);
+    setError('');
     try {
       if (role === 'hospital') {
         // 1. Register hospital user account
@@ -205,7 +158,7 @@ export default function RegisterPage() {
           staffRole: 'hospital_admin',
           city,
           area: area.trim() || 'Central Healthcare Campus',
-          isPhoneVerified: true,
+          isPhoneVerified: isVerified || isPhoneVerified,
           password,
         });
 
@@ -272,7 +225,7 @@ export default function RegisterPage() {
           bloodGroup: role === 'donor' ? bloodGroup : undefined,
           city,
           area: area.trim() || 'Central',
-          isPhoneVerified: true,
+          isPhoneVerified: isVerified || isPhoneVerified,
           password,
         });
 
@@ -293,6 +246,55 @@ export default function RegisterPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    if (!fullName.trim()) {
+      setError(role === 'hospital' ? 'Please enter the hospital / institution name.' : 'Please enter your full name.');
+      return;
+    }
+    if (!email.trim() || !email.includes('@')) {
+      setError('Please provide a valid official email address.');
+      return;
+    }
+    if (!phone.trim() || phone.length < 8) {
+      setError('Please provide a valid contact number.');
+      return;
+    }
+    if (role === 'hospital') {
+      if (!licenseNumber.trim()) {
+        setError('Please provide your state blood bank license number (e.g. BB-LIC-MH-890).');
+        return;
+      }
+      if (!headName.trim()) {
+        setError('Please enter the name of the Blood Bank Medical Officer / Head.');
+        return;
+      }
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (!agreed) {
+      setError('Please agree to the Terms of Service & Transfusion Safety Code.');
+      return;
+    }
+
+    // Require phone OTP verification for reliable account validation
+    if (!isPhoneVerified) {
+      await handleSendOtp(phone);
+      return;
+    }
+
+    // Already verified, proceed to account creation
+    await executeRegistration(true);
   };
 
   return (
@@ -769,6 +771,22 @@ export default function RegisterPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* Phone OTP Verification Modal */}
+      <OtpModal
+        isOpen={isOtpModalOpen}
+        phone={phone}
+        onClose={() => setIsOtpModalOpen(false)}
+        onChangePhone={() => {
+          setIsOtpModalOpen(false);
+          setIsPhoneVerified(false);
+        }}
+        onSendOtp={() => handleSendOtp(phone)}
+        onVerifyOtp={(code) => handleVerifyOtp(code)}
+        isSending={isSendingOtp}
+        isVerifying={isVerifyingOtp}
+        devOtp={devOtp}
+      />
     </div>
   );
 }

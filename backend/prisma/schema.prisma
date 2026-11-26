@@ -87,6 +87,13 @@ enum NotificationType {
   SYSTEM_ALERT
 }
 
+enum OtpPurpose {
+  REGISTRATION
+  PHONE_VERIFICATION
+  LOGIN
+  PASSWORD_RESET
+}
+
 // -------------------------------------------------------------
 // USER & AUTHENTICATION
 // -------------------------------------------------------------
@@ -404,4 +411,24 @@ model AuditLog {
 
   @@index([hospitalId])
   @@index([createdAt])
+}
+
+// -------------------------------------------------------------
+// PHONE OTP VERIFICATION & SMS DISPATCH
+// -------------------------------------------------------------
+
+model OtpVerification {
+  id          String     @id @default(uuid())
+  phoneNumber String
+  otpHash     String
+  purpose     OtpPurpose @default(REGISTRATION)
+  expiresAt   DateTime
+  attempts    Int        @default(0)
+  verifiedAt  DateTime?
+  consumedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([phoneNumber, purpose])
+  @@index([expiresAt])
 }

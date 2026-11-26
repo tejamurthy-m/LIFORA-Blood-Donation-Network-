@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller.js';
 import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
-import { authLimiter } from '../middleware/rateLimiter.js';
+import { authLimiter, otpLimiter } from '../middleware/rateLimiter.js';
 import {
   validate,
   registerSchema,
@@ -9,6 +9,9 @@ import {
   refreshTokenSchema,
   changePasswordSchema,
   updateProfileSchema,
+  sendOtpSchema,
+  verifyOtpSchema,
+  resendOtpSchema,
 } from '../validators/auth.validator.js';
 
 const router = Router();
@@ -19,9 +22,14 @@ router.post('/login', authLimiter, validate(loginSchema), authController.login);
 router.post('/refresh-token', validate(refreshTokenSchema), authController.refreshToken);
 router.post('/logout', authController.logout);
 
-// Phone OTP routes
-router.post('/phone/send-otp', authLimiter, optionalAuthenticate, authController.sendPhoneOtp);
-router.post('/phone/verify-otp', authLimiter, optionalAuthenticate, authController.verifyPhoneOtp);
+// Primary SMS OTP routes (Android SIM Gateway)
+router.post('/send-otp', otpLimiter, validate(sendOtpSchema), optionalAuthenticate, authController.sendPhoneOtp);
+router.post('/verify-otp', otpLimiter, validate(verifyOtpSchema), optionalAuthenticate, authController.verifyPhoneOtp);
+router.post('/resend-otp', otpLimiter, validate(resendOtpSchema), optionalAuthenticate, authController.sendPhoneOtp);
+
+// Backwards-compatible Phone OTP routes
+router.post('/phone/send-otp', otpLimiter, validate(sendOtpSchema), optionalAuthenticate, authController.sendPhoneOtp);
+router.post('/phone/verify-otp', otpLimiter, validate(verifyOtpSchema), optionalAuthenticate, authController.verifyPhoneOtp);
 
 // Email Verification routes
 router.post('/email/send-verification', authLimiter, optionalAuthenticate, authController.sendEmailVerification);

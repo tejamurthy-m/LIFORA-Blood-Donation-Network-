@@ -104,22 +104,29 @@ export const authController = {
     }
   },
 
-  // POST /api/v1/auth/phone/send-otp
+  // POST /api/v1/auth/send-otp and /api/v1/auth/phone/send-otp
   async sendPhoneOtp(req, res, next) {
     try {
-      const { phone } = req.body;
-      const result = await otpService.sendPhoneOtp(phone || req.user?.phone);
+      const phone = req.body.phoneNumber || req.body.phone || req.user?.phone;
+      const purpose = req.body.purpose || 'REGISTRATION';
+      const result = await otpService.sendPhoneOtp({ phone, purpose });
       res.status(200).json(result);
     } catch (error) {
       next(error);
     }
   },
 
-  // POST /api/v1/auth/phone/verify-otp
+  // POST /api/v1/auth/verify-otp and /api/v1/auth/phone/verify-otp
   async verifyPhoneOtp(req, res, next) {
     try {
-      const { phone, otp } = req.body;
-      const result = await otpService.verifyPhoneOtp(phone || req.user?.phone, otp, req.user);
+      const phone = req.body.phoneNumber || req.body.phone || req.user?.phone;
+      const { otp, purpose = 'REGISTRATION' } = req.body;
+      const result = await otpService.verifyPhoneOtp({
+        phone,
+        otp,
+        purpose,
+        currentUser: req.user,
+      });
       res.status(200).json(result);
     } catch (error) {
       next(error);
