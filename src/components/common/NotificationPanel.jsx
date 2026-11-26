@@ -9,14 +9,22 @@ export default function NotificationPanel({ isOpen, onClose }) {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (isOpen) {
-      setNotifications([]);
+    const loadNotifs = () => {
       notificationService.getNotifications().then((res) => {
         if (res && Array.isArray(res.notifications)) {
           setNotifications(res.notifications);
         }
       });
+    };
+
+    if (isOpen) {
+      loadNotifs();
     }
+
+    window.addEventListener('lifora:new_notification', loadNotifs);
+    return () => {
+      window.removeEventListener('lifora:new_notification', loadNotifs);
+    };
   }, [isOpen, user?.id]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;

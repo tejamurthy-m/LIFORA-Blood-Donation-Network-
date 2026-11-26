@@ -199,13 +199,49 @@ export const authService = {
     if (!currentUser) throw new Error('Not authenticated');
 
     try {
+      let res;
       if (currentUser.role === 'donor') {
-        const res = await api.put('/donors/me', updates);
-        if (res.data?.success) {
-          const updated = { ...currentUser, ...res.data.data };
-          localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
-          return updated;
+        res = await api.put('/donors/me', updates);
+      } else {
+        res = await api.put('/auth/profile', updates);
+      }
+
+      if (res?.data?.success) {
+        const returnedData = res.data.data?.user || res.data.data;
+        const updated = { ...currentUser, ...returnedData };
+        localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
+
+        // Sync stored users
+        const users = getStoredUsers();
+        const idx = users.findIndex((u) => u.id === currentUser.id || u.email === currentUser.email);
+        if (idx !== -1) {
+          users[idx] = updated;
+          saveStoredUsers(users);
         }
+
+        // Sync stored donors if donor
+        try {
+          const rawDonors = localStorage.getItem('lifora_donors_data');
+          if (rawDonors) {
+            const donors = JSON.parse(rawDonors);
+            const dIdx = donors.findIndex((d) => d.id === currentUser.id || d.userId === currentUser.id || d.name === currentUser.name || d.fullName === currentUser.name);
+            if (dIdx !== -1) {
+              donors[dIdx] = {
+                ...donors[dIdx],
+                name: updated.name || donors[dIdx].name,
+                fullName: updated.fullName || updated.name || donors[dIdx].fullName,
+                phone: updated.phone || donors[dIdx].phone,
+                bloodGroup: updated.bloodGroup || donors[dIdx].bloodGroup,
+                city: updated.city || donors[dIdx].city,
+                area: updated.area || donors[dIdx].area,
+                bio: updated.bio || donors[dIdx].bio,
+              };
+              localStorage.setItem('lifora_donors_data', JSON.stringify(donors));
+            }
+          }
+        } catch {}
+
+        return updated;
       }
     } catch (e) {
       console.warn('Backend updateProfile fallback:', e.message);
@@ -221,6 +257,28 @@ export const authService = {
       users[idx] = updated;
       saveStoredUsers(users);
     }
+
+    // Sync stored donors in fallback
+    try {
+      const rawDonors = localStorage.getItem('lifora_donors_data');
+      if (rawDonors) {
+        const donors = JSON.parse(rawDonors);
+        const dIdx = donors.findIndex((d) => d.id === currentUser.id || d.userId === currentUser.id || d.name === currentUser.name || d.fullName === currentUser.name);
+        if (dIdx !== -1) {
+          donors[dIdx] = {
+            ...donors[dIdx],
+            name: updated.name || donors[dIdx].name,
+            fullName: updated.fullName || updated.name || donors[dIdx].fullName,
+            phone: updated.phone || donors[dIdx].phone,
+            bloodGroup: updated.bloodGroup || donors[dIdx].bloodGroup,
+            city: updated.city || donors[dIdx].city,
+            area: updated.area || donors[dIdx].area,
+            bio: updated.bio || donors[dIdx].bio,
+          };
+          localStorage.setItem('lifora_donors_data', JSON.stringify(donors));
+        }
+      }
+    } catch {}
 
     return updated;
   },

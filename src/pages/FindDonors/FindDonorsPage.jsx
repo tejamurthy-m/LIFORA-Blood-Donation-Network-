@@ -64,10 +64,17 @@ export default function FindDonorsPage() {
     let isMounted = true;
     setLoading(true);
 
+    const targetCity = (filters.city && filters.city !== 'ALL') ? filters.city : (user?.city || 'Bangalore');
+    const targetArea = user?.area || null;
+    const cityKey = targetCity.toLowerCase().trim();
+    const cityCoords = CITY_COORDINATES[cityKey] || CITY_COORDINATES.bangalore;
+
     const queryFilters = {
       ...filters,
-      userCity: user?.city || 'Mumbai',
-      userArea: user?.area || null,
+      userCity: targetCity,
+      userArea: targetArea,
+      userLat: cityCoords[0],
+      userLng: cityCoords[1],
     };
 
     donorService
@@ -101,7 +108,7 @@ export default function FindDonorsPage() {
       const c = user.city.toLowerCase().trim();
       if (CITY_COORDINATES[c]) return CITY_COORDINATES[c];
     }
-    return [19.076, 72.8777];
+    return CITY_COORDINATES.bangalore || [12.9716, 77.5946];
   };
 
   // Sync URL search param if changed externally
@@ -125,14 +132,57 @@ export default function FindDonorsPage() {
   };
 
   const openRequestModal = (donor) => {
+    if (!donor) return;
+    const currentName = (user?.name || user?.fullName || '').trim().toLowerCase();
+    const donorName = (donor.name || donor.fullName || '').trim().toLowerCase();
+    const currentEmail = (user?.email || '').trim().toLowerCase();
+    const donorEmail = (donor.email || '').trim().toLowerCase();
+
+    if (
+      (user?.id && (donor.userId === user.id || donor.id === user.id)) ||
+      (currentName && donorName && currentName === donorName) ||
+      (currentEmail && donorEmail && currentEmail === donorEmail)
+    ) {
+      addToast({
+        title: 'Action Not Allowed',
+        message: 'You cannot dispatch a blood requisition to your own donor profile.',
+        type: 'warning',
+      });
+      return;
+    }
+
     setRequestModalDonor(donor);
-    setRequesterName(user?.name || user?.fullName || '');
+    setRequesterName(user?.role === 'recipient' ? (user?.name || user?.fullName || '') : '');
     setPatientName('');
+    const targetCity = donor.city || user?.city || 'Bangalore';
+    setHospitalName(
+      targetCity.toLowerCase().includes('mumbai')
+        ? 'Lilavati Hospital, Mumbai'
+        : 'Manipal Hospital, Bangalore'
+    );
   };
 
   const handleSendDirectRequest = async (e) => {
     e.preventDefault();
     if (!requestModalDonor) return;
+
+    if (!requesterName.trim()) {
+      addToast({
+        title: 'Requester Name Required',
+        message: 'Please enter your name as the attendant or requisition coordinator.',
+        type: 'warning',
+      });
+      return;
+    }
+
+    if (!patientName.trim()) {
+      addToast({
+        title: 'Patient Name Required',
+        message: 'Please provide the name of the patient requiring blood transfusion.',
+        type: 'warning',
+      });
+      return;
+    }
 
     setIsSendingRequest(true);
     try {
@@ -140,8 +190,8 @@ export default function FindDonorsPage() {
         hospitalName,
         unitsNeeded,
         isEmergency,
-        requester: requesterName.trim() || user?.name || user?.fullName || 'Verified Patient Attendant',
-        patientName: patientName.trim() || requesterName.trim() || 'Emergency Patient',
+        requester: requesterName.trim(),
+        patientName: patientName.trim(),
       });
 
       addToast({
@@ -248,6 +298,7 @@ export default function FindDonorsPage() {
                 key={donor.id}
                 donor={donor}
                 currentUserId={user?.id}
+                currentUser={user}
                 onViewProfile={(d) => setProfileModalDonor(d)}
                 onSendRequest={(d) => openRequestModal(d)}
               />
@@ -261,6 +312,7 @@ export default function FindDonorsPage() {
               key={donor.id}
               donor={donor}
               currentUserId={user?.id}
+              currentUser={user}
               onViewProfile={(d) => setProfileModalDonor(d)}
               onSendRequest={(d) => openRequestModal(d)}
             />
@@ -354,18 +406,34 @@ export default function FindDonorsPage() {
               >
                 Close
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = profileModalDonor;
-                  setProfileModalDonor(null);
-                  setRequestModalDonor(d);
-                }}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-[#C1123F] text-white text-xs font-bold hover:bg-[#9E0E32] shadow-sm flex items-center justify-center gap-2"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>Send Blood Request</span>
-              </button>
+              {(() => {
+                const cName = (user?.name || user?.fullName || '').trim().toLowerCase();
+                const dName = (profileModalDonor.name || profileModalDonor.fullName || '').trim().toLowerCase();
+                const isProfileSelf = Boolean(
+                  (user?.id && (profileModalDonor.userId === user.id || profileModalDonor.id === user.id)) ||
+                  (cName && dName && cName === dName)
+                );
+                return (
+                  <button
+                    type="button"
+                    disabled={isProfileSelf}
+                    onClick={() => {
+                      if (isProfileSelf) return;
+                      const d = profileModalDonor;
+                      setProfileModalDonor(null);
+                      openRequestModal(d);
+                    }}
+                    className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2 ${
+                      isProfileSelf
+                        ? 'bg-slate-100 text-slate-500 border border-slate-200 cursor-default'
+                        : 'bg-[#C1123F] text-white hover:bg-[#9E0E32]'
+                    }`}
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>{isProfileSelf ? 'Your Profile' : 'Send Blood Request'}</span>
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </Modal>

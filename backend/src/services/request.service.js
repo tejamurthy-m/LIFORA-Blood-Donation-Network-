@@ -95,14 +95,12 @@ export const formatRequestResponse = (req, refLat = null, refLng = null) => {
   const urgencyStr = DB_URGENCY_MAP[req.urgency] || 'Normal';
   const statusStr = DB_REQUEST_STATUS_MAP[req.status] || 'Pending';
 
-  let distanceKm = 2.4;
-  if (
-    refLat != null &&
-    refLng != null &&
-    req.latitude != null &&
-    req.longitude != null
-  ) {
-    distanceKm = calculateDistanceKm(refLat, refLng, req.latitude, req.longitude);
+  let distanceKm = null;
+  const reqLat = req.latitude != null ? req.latitude : CITY_COORDINATES[req.city?.toLowerCase()]?.lat;
+  const reqLng = req.longitude != null ? req.longitude : CITY_COORDINATES[req.city?.toLowerCase()]?.lng;
+
+  if (refLat != null && refLng != null && reqLat != null && reqLng != null) {
+    distanceKm = calculateDistanceKm(refLat, refLng, reqLat, reqLng);
   }
 
   const acceptedDonors = (req.responses || []).map((resp) => {

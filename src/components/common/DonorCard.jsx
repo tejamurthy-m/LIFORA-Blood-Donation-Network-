@@ -3,13 +3,20 @@ import { motion } from 'framer-motion';
 import { MapPin, Send, Eye, ShieldCheck, Heart } from 'lucide-react';
 import StatusBadge from './StatusBadge';
 
-export default function DonorCard({ donor, onViewProfile, onSendRequest, currentUserId }) {
+export default function DonorCard({ donor, onViewProfile, onSendRequest, currentUserId, currentUser }) {
   const isAvailable = donor.isAvailable;
+  const currentName = (currentUser?.name || currentUser?.fullName || '').trim().toLowerCase();
+  const donorName = (donor.name || donor.fullName || '').trim().toLowerCase();
+  const currentEmail = (currentUser?.email || '').trim().toLowerCase();
+  const donorEmail = (donor.email || '').trim().toLowerCase();
+
   const isSelf = Boolean(
-    currentUserId &&
+    (currentUserId &&
       (donor.userId === currentUserId ||
         donor.id === currentUserId ||
-        (donor.user?.id && donor.user.id === currentUserId))
+        (donor.user?.id && donor.user.id === currentUserId))) ||
+    (currentName && donorName && currentName === donorName) ||
+    (currentEmail && donorEmail && currentEmail === donorEmail)
   );
 
   return (

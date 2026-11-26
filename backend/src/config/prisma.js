@@ -4,7 +4,8 @@ import { config } from './environment.js';
 
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: config.env === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    datasourceUrl: process.env.DIRECT_URL || process.env.DATABASE_URL,
+    log: config.env === 'development' ? ['error', 'warn'] : ['error'],
   });
 };
 

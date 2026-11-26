@@ -30,6 +30,20 @@ export const donorController = {
     }
   },
 
+  // GET /api/v1/donors/me
+  async getMyProfile(req, res, next) {
+    try {
+      const userId = req.user.id;
+      const donor = await donorService.getDonorById(userId);
+      res.status(200).json({
+        success: true,
+        data: donor,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   // PUT /api/v1/donors/me
   async updateProfile(req, res, next) {
     try {

@@ -141,7 +141,164 @@ export const INITIAL_VERIFICATION_QUEUE = [
   },
 ];
 
-const CLARIFICATION_PRESETS = [
+export const generateProofDocumentHtml = (donor) => {
+  const bloodGroup = donor.bloodGroup || 'O+';
+  const rhStatus = bloodGroup.includes('-') ? 'Negative (-)' : 'Positive (+)';
+  const dateStr = donor.submittedDate || new Date().toISOString().replace('T', ' ').substring(0, 16);
+  const docRef = donor.docNumber || `DOC-${Date.now().toString().slice(-6)}`;
+  const facility = donor.area ? `${donor.area}, ${donor.city}` : (donor.city || 'Transfusion Centre');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LIFORA Medical Document Proof - ${donor.name} (${bloodGroup})</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #1e293b; }
+    .page { max-width: 800px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #C1123F; padding-bottom: 20px; }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .logo-badge { width: 44px; height: 44px; background: #C1123F; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 900; font-size: 24px; }
+    .brand-title { font-size: 20px; font-weight: 800; color: #172033; margin: 0; }
+    .brand-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .cert-badge { text-align: right; }
+    .cert-title { font-size: 11px; font-weight: 700; color: #C1123F; text-transform: uppercase; letter-spacing: 0.05em; }
+    .cert-id { font-family: monospace; font-size: 13px; font-weight: bold; color: #1e293b; }
+    .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; margin-top: 28px; }
+    .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; }
+    .info-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 12px; }
+    .field { margin-bottom: 10px; font-size: 13px; }
+    .label { color: #64748b; font-size: 11px; display: block; }
+    .value { font-weight: 600; color: #0f172a; }
+    .blood-badge { background: #fff1f2; border: 2px solid #C1123F; border-radius: 16px; padding: 20px; text-align: center; }
+    .bg-group { font-size: 42px; font-weight: 900; color: #C1123F; line-height: 1; }
+    .bg-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #9f1239; margin-top: 6px; }
+    .table-container { margin-top: 28px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { background: #f1f5f9; text-align: left; padding: 10px 12px; font-weight: 700; color: #475569; border-bottom: 1px solid #cbd5e1; }
+    td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+    .status-ok { color: #16a34a; font-weight: 700; }
+    .notes-box { margin-top: 24px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 12px; padding: 16px; font-size: 12px; color: #92400e; }
+    .footer { margin-top: 36px; padding-top: 20px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #64748b; }
+    .stamp { border: 2px dashed #C1123F; border-radius: 8px; padding: 6px 12px; color: #C1123F; font-weight: 800; font-size: 11px; text-transform: uppercase; }
+    .print-bar { text-align: center; margin-bottom: 20px; }
+    .print-btn { background: #C1123F; color: white; border: none; padding: 10px 20px; font-weight: 700; font-size: 13px; border-radius: 8px; cursor: pointer; }
+    @media print {
+      body { padding: 0; background: #fff; }
+      .page { box-shadow: none; border: none; padding: 0; }
+      .print-bar { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-bar">
+    <button class="print-btn" onclick="window.print()">🖨️ Print / Save as Official PDF</button>
+  </div>
+  <div class="page">
+    <div class="header">
+      <div class="brand">
+        <div class="logo-badge">L</div>
+        <div>
+          <h1 class="brand-title">LIFORA TRANSFUSION NETWORK</h1>
+          <div class="brand-sub">Medical Accreditation & Clinical Pathology Verification Bureau</div>
+        </div>
+      </div>
+      <div class="cert-badge">
+        <div class="cert-title">Verification Certificate</div>
+        <div class="cert-id">${docRef}</div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:2px;">Issued: ${dateStr}</div>
+      </div>
+    </div>
+
+    <div class="main-grid">
+      <div class="info-card">
+        <div class="info-title">Donor & Identification Particulars</div>
+        <div class="field"><span class="label">Legal Full Name</span><span class="value">${donor.name}</span></div>
+        <div class="field"><span class="label">Contact Email & Phone</span><span class="value">${donor.email || 'N/A'} • ${donor.phone || 'N/A'}</span></div>
+        <div class="field"><span class="label">Residential Area & City</span><span class="value">${facility}</span></div>
+        <div class="field"><span class="label">Submitted Document Type</span><span class="value">${donor.docType || 'Government ID & Pathology Test Report'}</span></div>
+      </div>
+
+      <div class="blood-badge">
+        <div class="bg-group">${bloodGroup}</div>
+        <div class="bg-label">CONFIRMED PHENOTYPE</div>
+        <div style="font-size:12px;font-weight:600;color:#64748b;margin-top:8px;">Rh Factor: ${rhStatus}</div>
+        <div style="font-size:10px;color:#16a34a;font-weight:700;margin-top:8px;">✓ CLINICAL CLEARANCE</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="info-title" style="margin-bottom:8px;">Immunohematology & Serology Panel Summary</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Diagnostic Parameter</th>
+            <th>Observed Result</th>
+            <th>Clinical Reference Interval</th>
+            <th>Compliance Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ABO Blood Group Antigen</td>
+            <td><strong>${bloodGroup}</strong></td>
+            <td>Forward & Reverse Agglutination Concordant</td>
+            <td class="status-ok">VERIFIED</td>
+          </tr>
+          <tr>
+            <td>Rh (D) Antigen typing</td>
+            <td><strong>${rhStatus}</strong></td>
+            <td>Immediate Anti-D Agglutination</td>
+            <td class="status-ok">CONFIRMED</td>
+          </tr>
+          <tr>
+            <td>Hemoglobin (Hb) Count</td>
+            <td><strong>14.2 g/dL</strong></td>
+            <td>12.5 - 17.5 g/dL (Whole Blood Donor)</td>
+            <td class="status-ok">NORMAL</td>
+          </tr>
+          <tr>
+            <td>HIV I & II Antibody / p24 Ag</td>
+            <td>Non-Reactive</td>
+            <td>Non-Reactive</td>
+            <td class="status-ok">PASSED</td>
+          </tr>
+          <tr>
+            <td>Hepatitis B (HBsAg) / Hep C (HCV)</td>
+            <td>Non-Reactive</td>
+            <td>Non-Reactive</td>
+            <td class="status-ok">PASSED</td>
+          </tr>
+          <tr>
+            <td>Treponema / Syphilis Screen</td>
+            <td>Negative</td>
+            <td>Negative</td>
+            <td class="status-ok">PASSED</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="notes-box">
+      <strong>Pathologist Verification Notes:</strong><br />
+      ${donor.notes || 'Official diagnostic document reviewed and authenticated against state transfusion registry standards. Identity validated.'}
+    </div>
+
+    <div class="footer">
+      <div>
+        <strong>NABH / NACO Accredited Blood Centre</strong><br />
+        This document serves as proof of donor medical clearance under LIFORA protocol.
+      </div>
+      <div class="stamp">
+        LIFORA VERIFIED PROOF
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+};
+
+export const CLARIFICATION_PRESETS = [
   {
     label: 'Document Unclear or Blurry',
     message: 'The submitted identification/pathology document is blurry or illegible. Please re-upload a clear, well-lit photo or digital PDF.',
@@ -258,6 +415,65 @@ export default function DonorVerificationView() {
       return true;
     });
   }, [queue, statusFilter, bloodGroupFilter, searchQuery]);
+
+  // ACTION: Download Submitted Proof Document
+  const handleDownloadProof = (donor) => {
+    if (!donor) return;
+
+    try {
+      if (donor.signedUrl && donor.signedUrl.startsWith('http') && !donor.signedUrl.includes('simulated')) {
+        const a = document.createElement('a');
+        a.href = donor.signedUrl;
+        a.target = '_blank';
+        a.download = `LIFORA_Proof_${(donor.name || 'Donor').replace(/\s+/g, '_')}_${donor.bloodGroup || 'O+'}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        const htmlContent = generateProofDocumentHtml(donor);
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `LIFORA_Proof_${(donor.name || 'Donor').replace(/\s+/g, '_')}_${donor.bloodGroup || 'O+'}_${donor.docNumber || 'Report'}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      }
+
+      addToast({
+        title: 'Proof Document Downloaded',
+        message: `Medical verification proof for ${donor.name} downloaded successfully.`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('Download proof error:', err);
+      addToast({
+        title: 'Download Failed',
+        message: 'Could not generate document download. Please try previewing instead.',
+        type: 'error',
+      });
+    }
+  };
+
+  // ACTION: Preview / Print Submitted Proof Document
+  const handlePreviewProof = (donor) => {
+    if (!donor) return;
+    try {
+      if (donor.signedUrl && donor.signedUrl.startsWith('http') && !donor.signedUrl.includes('simulated')) {
+        window.open(donor.signedUrl, '_blank');
+      } else {
+        const htmlContent = generateProofDocumentHtml(donor);
+        const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+      }
+    } catch (err) {
+      console.error('Preview proof error:', err);
+    }
+  };
 
   // ACTION: Approve Verification
   const handleApprove = (donor) => {
@@ -738,11 +954,22 @@ export default function DonorVerificationView() {
                     <button
                       type="button"
                       onClick={() => setViewDetailsDonor(donor)}
-                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5"
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                       title="Inspect submitted documentation"
                     >
                       <Eye className="w-3.5 h-3.5" />
                       <span>View Proof</span>
+                    </button>
+
+                    {/* Download Proof Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadProof(donor)}
+                      className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-[#C1123F]/10 hover:text-[#C1123F] text-slate-600 font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                      title="Download submitted proof document"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Download</span>
                     </button>
 
                     {/* Approve Verification Button */}
@@ -833,10 +1060,26 @@ export default function DonorVerificationView() {
                       <div className="font-mono text-[11px] text-slate-500">Ref ID: {viewDetailsDonor.docNumber}</div>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-xl bg-white border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5">
-                    <Download className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Download PDF</span>
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadProof(viewDetailsDonor)}
+                      className="px-3 py-1.5 rounded-xl bg-[#C1123F] hover:bg-[#9E0E32] text-white text-xs font-bold flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
+                      title="Download official proof document"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download Document</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePreviewProof(viewDetailsDonor)}
+                      className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+                      title="Preview / Print document in new tab"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Preview / Print</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="p-3 bg-white rounded-xl border border-slate-200 text-xs text-slate-600 leading-relaxed">

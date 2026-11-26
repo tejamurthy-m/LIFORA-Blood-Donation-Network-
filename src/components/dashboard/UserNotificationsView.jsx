@@ -35,7 +35,11 @@ export default function UserNotificationsView() {
     setItems([]);
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 4000);
-    return () => clearInterval(interval);
+    window.addEventListener('lifora:new_notification', fetchNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('lifora:new_notification', fetchNotifications);
+    };
   }, [user?.id]);
 
   const filtered = items.filter((item) => {

@@ -16,26 +16,51 @@ export const authenticate = async (req, res, next) => {
       process.env.NODE_ENV !== 'production' &&
       (token.startsWith('jwt_demo_') || token.startsWith('jwt_mock_'))
     ) {
-      const email = token.includes('donor')
-        ? 'donor@lifora.org'
-        : token.includes('hospital')
-        ? 'hospital@lifora.org'
-        : token.includes('admin')
-        ? 'admin@lifora.org'
-        : 'recipient@lifora.org';
+      // Check if token embeds a UUID
+      const uuidMatch = token.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      let demoUser = null;
 
-      const demoUser = await prisma.user.findUnique({
-        where: { email },
-        include: {
-          donorProfile: true,
-          recipientProfile: true,
-          staffProfile: {
-            include: {
-              hospital: true,
+      if (uuidMatch) {
+        demoUser = await prisma.user.findUnique({
+          where: { id: uuidMatch[0] },
+          include: {
+            donorProfile: true,
+            recipientProfile: true,
+            staffProfile: {
+              include: {
+                hospital: true,
+              },
             },
           },
-        },
-      });
+        });
+      }
+
+      if (!demoUser) {
+        const email = token.includes('donor')
+          ? 'donor@lifora.org'
+          : token.includes('hospital')
+          ? 'hospital@lifora.org'
+          : token.includes('admin') || token.includes('super')
+          ? 'admin@lifora.org'
+          : token.includes('recipient')
+          ? 'recipient@lifora.org'
+          : null;
+
+        if (email) {
+          demoUser = await prisma.user.findUnique({
+            where: { email },
+            include: {
+              donorProfile: true,
+              recipientProfile: true,
+              staffProfile: {
+                include: {
+                  hospital: true,
+                },
+              },
+            },
+          });
+        }
+      }
 
       if (demoUser) {
         req.user = demoUser;

@@ -80,7 +80,10 @@ export const authController = {
       res.status(200).json({
         success: true,
         message: 'Profile updated successfully.',
-        data: { user: updatedUser },
+        data: {
+          ...updatedUser,
+          user: updatedUser,
+        },
       });
     } catch (error) {
       next(error);

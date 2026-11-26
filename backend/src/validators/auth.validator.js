@@ -6,12 +6,16 @@ const BloodGroupEnum = z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 // Map blood group strings to Prisma enum keys
 export const BLOOD_GROUP_MAP = {
   'A+': 'A_POSITIVE',
+  'A ': 'A_POSITIVE',
   'A-': 'A_NEGATIVE',
   'B+': 'B_POSITIVE',
+  'B ': 'B_POSITIVE',
   'B-': 'B_NEGATIVE',
   'AB+': 'AB_POSITIVE',
+  'AB ': 'AB_POSITIVE',
   'AB-': 'AB_NEGATIVE',
   'O+': 'O_POSITIVE',
+  'O ': 'O_POSITIVE',
   'O-': 'O_NEGATIVE',
 };
 

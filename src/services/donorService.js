@@ -3,6 +3,31 @@ import { INITIAL_DONORS } from './mockData';
 
 const DONORS_STORAGE_KEY = 'lifora_donors_data';
 
+const CITY_COORDINATES = {
+  mumbai: { lat: 19.076, lng: 72.8777 },
+  bangalore: { lat: 12.9716, lng: 77.5946 },
+  bengaluru: { lat: 12.9716, lng: 77.5946 },
+  delhi: { lat: 28.7041, lng: 77.1025 },
+  hyderabad: { lat: 17.385, lng: 78.4867 },
+  pune: { lat: 18.5204, lng: 73.8567 },
+  chennai: { lat: 13.0827, lng: 80.2707 },
+};
+
+export const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+  if (lat1 == null || lon1 == null || lat2 == null || lon2 == null) return null;
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 10) / 10;
+};
+
 export const getStoredDonors = () => {
   const stored = localStorage.getItem(DONORS_STORAGE_KEY);
   if (!stored) {
@@ -35,6 +60,24 @@ export const donorService = {
     await simulatedDelay(300);
 
     let list = [...getStoredDonors()];
+
+    // Determine reference coordinates for accurate local distance calculation
+    const refCity = (filters.city && filters.city !== 'ALL') ? filters.city : (filters.userCity || 'bangalore');
+    const refCoords = (filters.userLat && filters.userLng)
+      ? { lat: parseFloat(filters.userLat), lng: parseFloat(filters.userLng) }
+      : CITY_COORDINATES[refCity.toLowerCase()] || CITY_COORDINATES.bangalore;
+
+    // Recalculate true geographical distance from recipient reference location
+    list = list.map((d) => {
+      const dCoords = (d.lat && d.lng)
+        ? { lat: d.lat, lng: d.lng }
+        : CITY_COORDINATES[d.city?.toLowerCase()] || CITY_COORDINATES.mumbai;
+      const distance = calculateDistanceKm(refCoords.lat, refCoords.lng, dCoords.lat, dCoords.lng);
+      return {
+        ...d,
+        distanceKm: distance != null ? distance : d.distanceKm,
+      };
+    });
 
     // Blood group filter (exact match or universal compatibility)
     if (filters.bloodGroup && filters.bloodGroup !== 'ALL') {

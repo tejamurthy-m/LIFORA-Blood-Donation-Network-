@@ -28,23 +28,38 @@ export const initSocketServer = (httpServer) => {
           process.env.NODE_ENV !== 'production' &&
           (token.startsWith('jwt_demo_') || token.startsWith('jwt_mock_'))
         ) {
-          const email = token.includes('donor')
-            ? 'donor@lifora.org'
-            : token.includes('hospital')
-            ? 'hospital@lifora.org'
-            : token.includes('recipient')
-            ? 'recipient@lifora.org'
-            : token.includes('super')
-            ? 'admin@lifora.org'
-            : 'tejamurthycng@gmail.com';
+          // Check if token embeds a UUID
+          const uuidMatch = token.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+          let user = null;
 
-          try {
-            const user = await prisma.user.findFirst({ where: { email } });
-            socket.user = user
-              ? { userId: user.id, role: user.role, email: user.email }
-              : { userId: token, role: 'DONOR' };
-          } catch {
-            socket.user = { userId: token, role: 'DONOR' };
+          if (uuidMatch) {
+            try {
+              user = await prisma.user.findUnique({ where: { id: uuidMatch[0] } });
+            } catch {}
+          }
+
+          if (!user) {
+            const email = token.includes('donor')
+              ? 'donor@lifora.org'
+              : token.includes('hospital')
+              ? 'hospital@lifora.org'
+              : token.includes('recipient')
+              ? 'recipient@lifora.org'
+              : token.includes('admin') || token.includes('super')
+              ? 'admin@lifora.org'
+              : null;
+
+            if (email) {
+              try {
+                user = await prisma.user.findFirst({ where: { email } });
+              } catch {}
+            }
+          }
+
+          if (user) {
+            socket.user = { userId: user.id, role: user.role, email: user.email };
+          } else {
+            socket.user = null;
           }
         } else {
           try {

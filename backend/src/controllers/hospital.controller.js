@@ -162,12 +162,18 @@ export const hospitalController = {
         throw new ApiError(400, 'Hospital identifier could not be determined.', 'MISSING_HOSPITAL_ID');
       }
 
-      const { name, email, phone, role, department, password } = req.body;
-      if (!name || !email || !phone) {
-        throw new ApiError(400, 'Staff name, email, and phone number are required.');
+      const name = req.body.name || req.body.fullName;
+      const email = req.body.email;
+      const phone = req.body.phone;
+      if (!name || !email) {
+        throw new ApiError(400, 'Staff name and email are required.');
       }
 
-      const newStaff = await hospitalService.addStaff(hospitalId, req.body, req.user);
+      const newStaff = await hospitalService.addStaff(hospitalId, {
+        ...req.body,
+        name,
+        phone,
+      }, req.user);
       res.status(201).json({
         success: true,
         message: 'Staff member added successfully.',
@@ -240,7 +246,22 @@ export const hospitalController = {
         throw new ApiError(400, 'Hospital identifier could not be determined.', 'MISSING_HOSPITAL_ID');
       }
 
-      const { donorId, bloodGroup, unitsDonated } = req.body;
+      let { donorId, bloodGroup, unitsDonated, arrivalId, responseId } = req.body;
+      const targetArrivalId = arrivalId || responseId;
+
+      if ((!donorId || !bloodGroup) && targetArrivalId) {
+        const arrival = await prisma.donorArrival.findUnique({
+          where: { id: targetArrivalId },
+          include: { donor: true },
+        });
+        if (arrival) {
+          donorId = donorId || arrival.donorId;
+          bloodGroup = bloodGroup || arrival.donor?.bloodGroup;
+          req.body.donorId = donorId;
+          req.body.bloodGroup = bloodGroup;
+        }
+      }
+
       if (!donorId || !bloodGroup) {
         throw new ApiError(400, 'Donor ID and blood group are required.');
       }

@@ -62,6 +62,7 @@ export function SocketProvider({ children }) {
         message: data.message || 'You have an important update.',
         type: data.type === 'EMERGENCY_REQUEST' ? 'warning' : 'info',
       });
+      window.dispatchEvent(new CustomEvent('lifora:new_notification', { detail: data }));
     });
 
     // Real-time Event: Verification Status Changed

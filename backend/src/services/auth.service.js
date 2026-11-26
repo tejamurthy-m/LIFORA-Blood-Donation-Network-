@@ -415,12 +415,13 @@ export const authService = {
 
   // Update profile
   async updateProfile(userId, updates) {
-    const { fullName, phone, city, area, bio, avatarUrl } = updates;
+    const { fullName, name, phone, city, area, bio, avatarUrl, bloodGroup, age, isAvailable } = updates;
+    const targetName = (fullName || name || '').trim();
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
-        ...(fullName && { fullName: fullName.trim() }),
+        ...(targetName && { fullName: targetName }),
         ...(phone && { phone: phone.trim() }),
         ...(city && { city: city.trim() }),
         ...(area !== undefined && { area: area.trim() }),
@@ -433,13 +434,34 @@ export const authService = {
       },
     });
 
-    if (bio && updatedUser.donorProfile) {
+    if (updatedUser.donorProfile) {
+      const targetCity = city ? city.trim() : updatedUser.city;
+      const targetArea = area ? area.trim() : updatedUser.area;
+      const coords = resolveCoordinates(targetCity, targetArea);
+      const mappedBg = bloodGroup ? BLOOD_GROUP_MAP[bloodGroup] || bloodGroup : undefined;
+
       await prisma.donorProfile.update({
         where: { id: updatedUser.donorProfile.id },
-        data: { bio: bio.trim() },
+        data: {
+          ...(bio !== undefined && { bio: bio.trim() }),
+          ...(age !== undefined && { age: parseInt(age, 10) }),
+          ...(isAvailable !== undefined && { isAvailable: Boolean(isAvailable) }),
+          ...(mappedBg && { bloodGroup: mappedBg }),
+          latitude: coords.lat,
+          longitude: coords.lng,
+        },
       });
     }
 
-    return formatUserResponse(updatedUser);
+    const refreshedUser = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        donorProfile: true,
+        recipientProfile: true,
+        staffProfile: { include: { hospital: true } },
+      },
+    });
+
+    return formatUserResponse(refreshedUser || updatedUser);
   },
 };

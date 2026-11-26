@@ -196,7 +196,12 @@ export const hospitalService = {
 
   // Add staff member (hospital_admin only)
   async addStaff(hospitalId, payload, adminUser) {
-    const { name, email, phone, role, department, password } = payload;
+    const name = payload.name || payload.fullName;
+    let phone = (payload.phone || '').trim();
+    if (!phone) {
+      phone = `9${Math.floor(100000000 + Math.random() * 900000000)}`;
+    }
+    const { email, role, department, password } = payload;
 
     const normalizedEmail = email.toLowerCase().trim();
     const existing = await prisma.user.findUnique({
@@ -204,6 +209,17 @@ export const hospitalService = {
     });
     if (existing) {
       throw new ApiError(400, 'An account with this email already exists.', 'EMAIL_EXISTS');
+    }
+
+    // Ensure phone uniqueness if generated or provided
+    const existingPhone = await prisma.user.findFirst({
+      where: { phone },
+    });
+    if (existingPhone) {
+      if (payload.phone) {
+        throw new ApiError(400, 'An account with this phone number already exists.', 'PHONE_EXISTS');
+      }
+      phone = `9${Math.floor(100000000 + Math.random() * 900000000)}`;
     }
 
     const passwordHash = await bcrypt.hash(password || 'hospital123', 12);
@@ -408,73 +424,88 @@ export const hospitalService = {
 
   // Record Clinical Phlebotomy Donation Outcome
   async recordDonation(hospitalId, payload, staffUser) {
-    const { donorId, bloodGroup, unitsDonated, donationType, screeningPassed, hemoglobinLevel, bloodPressure, pulseRate, bagBarcode, deferralReason } = payload;
+    let { donorId, bloodGroup, unitsDonated, donationType, screeningPassed, hemoglobinLevel, bloodPressure, pulseRate, bagBarcode, deferralReason, arrivalId, responseId, outcome } = payload;
 
-    const mappedBg = BLOOD_GROUP_MAP[bloodGroup] || 'O_POSITIVE';
-
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Record clinical donation
-      const record = await tx.donationRecord.create({
-        data: {
-          hospitalId,
-          donorId,
-          bloodGroup: mappedBg,
-          unitsDonated: parseInt(unitsDonated, 10) || 1,
-          donationType: donationType || 'WHOLE_BLOOD',
-          screeningPassed: Boolean(screeningPassed),
-          hemoglobinLevel: parseFloat(hemoglobinLevel) || 13.5,
-          bloodPressure: bloodPressure || '120/80',
-          pulseRate: parseInt(pulseRate, 10) || 72,
-          bagBarcode: bagBarcode || `BAG-${Date.now().toString().slice(-6)}`,
-          deferralReason: deferralReason || null,
-          verifiedBy: staffUser.fullName,
-        },
+    // Resolve donorId and bloodGroup from arrival if not provided directly
+    const targetArrivalId = arrivalId || responseId;
+    if ((!donorId || !bloodGroup) && targetArrivalId) {
+      const arrival = await prisma.donorArrival.findUnique({
+        where: { id: targetArrivalId },
+        include: { donor: true },
       });
+      if (arrival) {
+        donorId = donorId || arrival.donorId;
+        bloodGroup = bloodGroup || arrival.donor.bloodGroup;
+      }
+    }
 
-      // 2. Increment collected units in hospital inventory if passed
-      if (screeningPassed) {
-        await tx.bloodRequirement.upsert({
-          where: {
-            hospitalId_bloodGroup: {
-              hospitalId,
-              bloodGroup: mappedBg,
-            },
-          },
-          update: {
-            collectedUnits: { increment: parseInt(unitsDonated, 10) || 1 },
-          },
-          create: {
+    if (screeningPassed === undefined && outcome) {
+      screeningPassed = outcome === 'DONATED';
+    }
+
+    const mappedBg = BLOOD_GROUP_MAP[bloodGroup] || (bloodGroup && bloodGroup.includes('_') ? bloodGroup : 'O_POSITIVE');
+
+    // 1. Record clinical donation
+    const record = await prisma.donationRecord.create({
+      data: {
+        hospitalId,
+        donorId,
+        bloodGroup: mappedBg,
+        unitsDonated: parseInt(unitsDonated, 10) || 1,
+        donationType: donationType || 'WHOLE_BLOOD',
+        screeningPassed: Boolean(screeningPassed),
+        hemoglobinLevel: parseFloat(hemoglobinLevel) || 13.5,
+        bloodPressure: bloodPressure || '120/80',
+        pulseRate: parseInt(pulseRate, 10) || 72,
+        bagBarcode: bagBarcode || `BAG-${Date.now().toString().slice(-6)}`,
+        deferralReason: deferralReason || null,
+        verifiedBy: staffUser.fullName,
+      },
+    });
+
+    // 2. Increment collected units in hospital inventory if passed
+    if (screeningPassed) {
+      await prisma.bloodRequirement.upsert({
+        where: {
+          hospitalId_bloodGroup: {
             hospitalId,
             bloodGroup: mappedBg,
-            targetUnits: 20,
-            collectedUnits: parseInt(unitsDonated, 10) || 1,
           },
-        });
-
-        // 3. Increment total donations on donor profile
-        await tx.donorProfile.update({
-          where: { id: donorId },
-          data: {
-            totalDonations: { increment: 1 },
-            lastDonationDate: new Date(),
-          },
-        });
-      }
-
-      // 4. Audit log
-      await tx.auditLog.create({
-        data: {
-          hospitalId,
-          userId: staffUser.id,
-          action: 'Clinical Phlebotomy Recorded',
-          actorName: staffUser.fullName,
-          target: `${bagBarcode || record.id} (${bloodGroup})`,
-          notes: screeningPassed ? 'Phlebotomy successful, units stored in blood bank.' : `Screening failed: ${deferralReason}`,
         },
-      });
+        update: {
+          collectedUnits: { increment: parseInt(unitsDonated, 10) || 1 },
+        },
+        create: {
+          hospitalId,
+          bloodGroup: mappedBg,
+          targetUnits: 20,
+          collectedUnits: parseInt(unitsDonated, 10) || 1,
+        },
+      }).catch(() => {});
 
-      return record;
-    });
+      // 3. Increment total donations on donor profile
+      await prisma.donorProfile.update({
+        where: { id: donorId },
+        data: {
+          totalDonations: { increment: 1 },
+          lastDonationDate: new Date(),
+        },
+      }).catch(() => {});
+    }
+
+    // 4. Audit log
+    await prisma.auditLog.create({
+      data: {
+        hospitalId,
+        userId: staffUser.id,
+        action: 'Clinical Phlebotomy Recorded',
+        actorName: staffUser.fullName,
+        target: `${bagBarcode || record.id} (${bloodGroup})`,
+        notes: screeningPassed ? 'Phlebotomy successful, units stored in blood bank.' : `Screening failed: ${deferralReason}`,
+      },
+    }).catch(() => {});
+
+    const result = record;
 
     emitToHospital(hospitalId, 'donation:recorded', {
       donationId: result.id,

@@ -5,6 +5,7 @@ import { authenticate, optionalAuthenticate } from '../middleware/auth.js';
 const router = Router();
 
 // Protected donor management endpoints
+router.get('/me', authenticate, donorController.getMyProfile);
 router.get('/me/donations', authenticate, donorController.getMyDonations);
 router.put('/me', authenticate, donorController.updateProfile);
 router.patch('/me/availability', authenticate, (req, res, next) => {

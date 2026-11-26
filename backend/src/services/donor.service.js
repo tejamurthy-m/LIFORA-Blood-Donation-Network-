@@ -13,6 +13,7 @@ import {
 import {
   getCompatibleDonors,
   getCompatibleRecipients,
+  normalizeBloodGroupString,
 } from '../utils/bloodCompatibility.js';
 
 // Format donor database record into full-stack frontend compatible contract
@@ -149,10 +150,12 @@ export const donorService = {
     }
 
     // Blood group filter
-    if (bloodGroup && bloodGroup !== 'ALL') {
-      const normalizedBg = REVERSE_BLOOD_GROUP_MAP[bloodGroup] || bloodGroup;
+    const cleanBloodGroup = normalizeBloodGroupString(bloodGroup);
+    const cleanCompatibleWith = normalizeBloodGroupString(compatibleWith);
+
+    if (cleanBloodGroup) {
       // Find compatible blood groups if exact match or compatible
-      const compatibleGroups = getCompatibleDonors(normalizedBg);
+      const compatibleGroups = getCompatibleDonors(cleanBloodGroup);
       const mappedPrismaEnums = compatibleGroups
         .map((bg) => BLOOD_GROUP_MAP[bg])
         .filter(Boolean);
@@ -160,9 +163,8 @@ export const donorService = {
       where.bloodGroup = {
         in: mappedPrismaEnums,
       };
-    } else if (compatibleWith) {
-      const normalizedBg = REVERSE_BLOOD_GROUP_MAP[compatibleWith] || compatibleWith;
-      const compatibleGroups = getCompatibleDonors(normalizedBg);
+    } else if (cleanCompatibleWith) {
+      const compatibleGroups = getCompatibleDonors(cleanCompatibleWith);
       const mappedPrismaEnums = compatibleGroups
         .map((bg) => BLOOD_GROUP_MAP[bg])
         .filter(Boolean);
@@ -218,23 +220,18 @@ export const donorService = {
   // Get single donor by Profile ID or User ID
   async getDonorById(id, refLat = null, refLng = null) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
-    let profile = null;
-    if (isUuid) {
-      profile = await prisma.donorProfile.findFirst({
-        where: {
-          OR: [{ id }, { userId: id }],
-        },
-        include: {
-          user: true,
-        },
-      });
-    } else {
-      profile = await prisma.donorProfile.findFirst({
-        include: {
-          user: true,
-        },
-      });
+    if (!isUuid) {
+      throw new ApiError(404, 'Invalid donor profile identifier.', 'DONOR_NOT_FOUND');
     }
+
+    const profile = await prisma.donorProfile.findFirst({
+      where: {
+        OR: [{ id }, { userId: id }],
+      },
+      include: {
+        user: true,
+      },
+    });
 
     if (!profile) {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
@@ -288,29 +285,23 @@ export const donorService = {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
     }
 
-    const { bio, age, isAvailable, emergencyReady, city, area } = updates;
+    const { fullName, name, phone, bio, age, isAvailable, emergencyReady, city, area, bloodGroup } = updates;
+    const targetName = (fullName || name || '').trim();
 
-    if (city || area) {
-      const targetCity = city ? city.trim() : profile.user.city;
-      const targetArea = area ? area.trim() : profile.user.area;
-      const coords = resolveCoordinates(targetCity, targetArea);
+    const targetCity = city ? city.trim() : profile.user.city;
+    const targetArea = area !== undefined ? area.trim() : profile.user.area;
+    const coords = resolveCoordinates(targetCity, targetArea);
+    const mappedBg = bloodGroup ? BLOOD_GROUP_MAP[bloodGroup] || bloodGroup : undefined;
 
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          city: city ? city.trim() : undefined,
-          area: area ? area.trim() : undefined,
-        },
-      });
-
-      await prisma.donorProfile.update({
-        where: { id: profile.id },
-        data: {
-          latitude: coords.lat,
-          longitude: coords.lng,
-        },
-      });
-    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(targetName && { fullName: targetName }),
+        ...(phone && { phone: phone.trim() }),
+        ...(city && { city: targetCity }),
+        ...(area !== undefined && { area: targetArea }),
+      },
+    });
 
     const updated = await prisma.donorProfile.update({
       where: { id: profile.id },
@@ -319,6 +310,9 @@ export const donorService = {
         age: age !== undefined ? parseInt(age, 10) : undefined,
         isAvailable: isAvailable !== undefined ? Boolean(isAvailable) : undefined,
         emergencyReady: emergencyReady !== undefined ? Boolean(emergencyReady) : undefined,
+        ...(mappedBg && { bloodGroup: mappedBg }),
+        latitude: coords.lat,
+        longitude: coords.lng,
       },
       include: { user: true },
     });
@@ -345,8 +339,16 @@ export const donorService = {
       throw new ApiError(404, 'Donor profile not found.', 'DONOR_NOT_FOUND');
     }
 
-    // Safety check: Donors cannot dispatch requisitions to themselves
-    if (requestingUser && donor.userId && requestingUser.id === donor.userId) {
+    // Safety check: Donors cannot dispatch requisitions to their own profile
+    const reqName = (requestData?.requester || requestingUser?.fullName || '').trim().toLowerCase();
+    const donorFullName = (donor.fullName || '').trim().toLowerCase();
+    const donorDisplayName = (donor.name || '').trim().toLowerCase();
+
+    if (
+      (requestingUser && donor.userId && requestingUser.id === donor.userId) ||
+      (reqName && donorFullName && (reqName === donorFullName || donorFullName.startsWith(reqName) || reqName.startsWith(donorFullName))) ||
+      (reqName && donorDisplayName && (reqName === donorDisplayName || donorDisplayName.startsWith(reqName) || reqName.startsWith(donorDisplayName)))
+    ) {
       throw new ApiError(400, 'You cannot dispatch a blood requisition to your own donor profile.', 'CANNOT_REQUEST_SELF');
     }
 
@@ -357,10 +359,14 @@ export const donorService = {
       'Verified Patient Attendant';
 
     const patientName =
-      (requestData?.patientName && requestData.patientName.trim()) ||
-      requesterName;
+      requestData?.patientName && requestData.patientName.trim()
+        ? requestData.patientName.trim()
+        : null;
 
-    const patientContext = patientName !== requesterName ? ` (Patient: ${patientName})` : '';
+    const patientContext =
+      patientName && patientName.toLowerCase() !== requesterName.toLowerCase()
+        ? ` (Patient: ${patientName})`
+        : '';
     const hospitalContext = requestData?.hospitalName ? ` for ${requestData.hospitalName}` : '';
 
     // 1. Create in-app notification strictly for the target donor
@@ -370,11 +376,11 @@ export const donorService = {
           userId: donor.userId,
           type: 'DONOR_MATCH',
           title: 'Direct Blood Requisition Received 🩸',
-          message: `${requesterName}${patientContext} has requested an urgent ${donor.bloodGroup} donation from you${hospitalContext}.`,
+          message: `${requesterName}${patientContext} has requested an urgent ${donor.bloodGroup} blood donation from you${hospitalContext}.`,
           metadata: {
             requesterId: requestingUser?.id || null,
             requesterName,
-            patientName,
+            patientName: patientName || requesterName,
             bloodGroup: donor.bloodGroup,
             ...requestData,
           },
@@ -393,36 +399,6 @@ export const donorService = {
           metadata: createdNotif.metadata,
           isRead: false,
           createdAt: createdNotif.createdAt.toISOString(),
-        });
-      }
-    }
-
-    // 2. Create confirmation notification for the requester
-    if (requestingUser?.id && requestingUser.id !== donor.userId) {
-      const reqNotif = await prisma.notification.create({
-        data: {
-          userId: requestingUser.id,
-          type: 'DONOR_MATCH',
-          title: 'Direct Request Dispatched 🩸',
-          message: `Your request for ${donor.bloodGroup} blood has been delivered to verified donor ${donor.fullName}${hospitalContext}.`,
-          metadata: {
-            donorId: donor.id,
-            donorName: donor.fullName,
-            bloodGroup: donor.bloodGroup,
-            ...requestData,
-          },
-        },
-      }).catch(() => null);
-
-      if (reqNotif) {
-        emitToUser(requestingUser.id, 'notification:received', {
-          id: reqNotif.id,
-          type: reqNotif.type,
-          title: reqNotif.title,
-          message: reqNotif.message,
-          metadata: reqNotif.metadata,
-          isRead: false,
-          createdAt: reqNotif.createdAt.toISOString(),
         });
       }
     }
