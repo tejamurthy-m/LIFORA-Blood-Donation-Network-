@@ -511,6 +511,38 @@ export default function DonorDashboard() {
     const donationCount = user?.totalDonations ?? (realDonations.length || 0);
     const livesSavedCount = donationCount * 3;
 
+    // A donor can clinically donate whole blood at most once every 3 months (90 days), capping calendar year donations at max 3-4
+    const currentYear = new Date().getFullYear();
+    const realThisYear = realDonations.filter((r) => {
+      const d = new Date(r.donationDate);
+      return !isNaN(d.getTime()) && d.getFullYear() === currentYear;
+    }).length;
+
+    const donationsThisYear = realDonations.length > 0
+      ? Math.min(realThisYear, 4)
+      : donationCount > 0
+      ? Math.min(2, donationCount)
+      : 0;
+
+    // Calculate 90-day (3-month) donation interval eligibility
+    let nextEligibleValue = 'Available Now';
+    let nextEligibleSubtitle = donationCount > 0 ? '90+ days cooldown cleared' : 'Ready for initial screening';
+
+    const lastDateRaw = user?.lastDonationDate || (realDonations.length > 0 ? realDonations[0]?.donationDate : null);
+    if (lastDateRaw) {
+      const lastDate = new Date(lastDateRaw);
+      if (!isNaN(lastDate.getTime())) {
+        const msDiff = Date.now() - lastDate.getTime();
+        const daysSince = Math.floor(msDiff / (1000 * 60 * 60 * 24));
+        if (daysSince >= 0 && daysSince < 90) {
+          const daysRemaining = 90 - daysSince;
+          const eligibleOn = new Date(lastDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+          nextEligibleValue = eligibleOn.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+          nextEligibleSubtitle = `${daysRemaining} days left (3-month cooldown)`;
+        }
+      }
+    }
+
     const isVerifiedDonor =
       user?.verificationStatus === 'APPROVED' ||
       user?.verificationStatus === 'VERIFIED' ||
@@ -623,7 +655,7 @@ export default function DonorDashboard() {
             subtitle={donationCount > 0 ? `${(donationCount * 0.45).toFixed(1)} L blood contributed` : 'Ready for first donation'}
             icon={Heart}
             colorScheme="crimson"
-            trend={donationCount > 0 ? `+${donationCount} this year` : undefined}
+            trend={donationsThisYear > 0 ? `+${donationsThisYear} this year` : undefined}
           />
           <StatCard
             title="Pending Requests"
@@ -641,8 +673,8 @@ export default function DonorDashboard() {
           />
           <StatCard
             title="Next Eligible Date"
-            value="Available Now"
-            subtitle={donationCount > 0 ? '90+ days since last donation' : 'Ready for initial screening'}
+            value={nextEligibleValue}
+            subtitle={nextEligibleSubtitle}
             icon={Calendar}
             colorScheme="blue"
           />
