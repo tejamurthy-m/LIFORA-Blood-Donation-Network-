@@ -17,6 +17,7 @@ import {
   User,
 } from 'lucide-react';
 import { requestService } from '../../services/requestService';
+import { notificationService } from '../../services/notificationService';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
@@ -84,6 +85,21 @@ export default function CreateRequestPage() {
       });
 
       setCreatedRequest(result);
+
+      // Add live notification to recipient's notifications centre
+      await notificationService.addNotification({
+        type: urgency === 'Emergency' ? 'emergency' : 'response',
+        rawType: 'REQUEST_BROADCAST',
+        title: urgency === 'Emergency' ? 'Emergency Broadcast Active 🚨' : 'Blood Requisition Dispatched 📋',
+        message: `Your blood request (${result.trackingId}) for ${unitsRequired} unit(s) of ${bloodGroup} at ${hospitalName} has been broadcast to nearby verified donors.`,
+        metadata: {
+          trackingId: result.trackingId,
+          bloodGroup,
+          hospitalName,
+          unitsRequired,
+        },
+      });
+
       addToast({
         title: 'Blood Request Successfully Created!',
         message: `Tracking ID: ${result.trackingId}. Broadcasting to nearby compatible donors.`,

@@ -32,6 +32,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { requestService } from '../../services/requestService';
 import { donorService } from '../../services/donorService';
+import { notificationService } from '../../services/notificationService';
 import api from '../../services/api';
 
 export default function DonorDashboard() {
@@ -109,6 +110,7 @@ export default function DonorDashboard() {
 
   const handleAcceptRequest = async (requestId) => {
     const donorName = user?.name || user?.fullName || 'Lifesaver Donor';
+    const targetReq = requests.find((r) => r.id === requestId || r.trackingId === requestId);
     try {
       const updated = await requestService.acceptRequest(
         requestId,
@@ -122,6 +124,28 @@ export default function DonorDashboard() {
           localStorage.setItem(key, JSON.stringify([...prevAccepted, requestId]));
         }
       } catch {}
+
+      // Add donor audit notification
+      await notificationService.addNotification({
+        userId: user?.id,
+        type: 'response',
+        rawType: 'DONOR_ACCEPT',
+        title: 'Donation Pledged 🩸',
+        message: `You have confirmed your pledge to donate for requisition ${targetReq?.hospitalName ? `at ${targetReq.hospitalName}` : requestId}. ETA: 20 mins.`,
+        metadata: { requestId, hospitalName: targetReq?.hospitalName },
+      });
+
+      // Add recipient/requester notification if applicable
+      if (targetReq?.requesterId) {
+        await notificationService.addNotification({
+          userId: targetReq.requesterId,
+          type: 'response',
+          rawType: 'DONOR_RESPONSE',
+          title: 'Donor En Route! 🩸',
+          message: `${donorName} has accepted your blood requisition for ${targetReq.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
+          metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
+        });
+      }
 
       setRequests((prev) =>
         prev.map((r) =>
@@ -144,6 +168,28 @@ export default function DonorDashboard() {
           localStorage.setItem(key, JSON.stringify([...prevAccepted, requestId]));
         }
       } catch {}
+
+      // Add donor audit notification
+      await notificationService.addNotification({
+        userId: user?.id,
+        type: 'response',
+        rawType: 'DONOR_ACCEPT',
+        title: 'Donation Pledged 🩸',
+        message: `You have confirmed your pledge to donate for requisition ${targetReq?.hospitalName ? `at ${targetReq.hospitalName}` : requestId}.`,
+        metadata: { requestId, hospitalName: targetReq?.hospitalName },
+      });
+
+      // Add recipient/requester notification if applicable
+      if (targetReq?.requesterId) {
+        await notificationService.addNotification({
+          userId: targetReq.requesterId,
+          type: 'response',
+          rawType: 'DONOR_RESPONSE',
+          title: 'Donor En Route! 🩸',
+          message: `${donorName} has accepted your blood requisition for ${targetReq.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
+          metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
+        });
+      }
 
       setRequests((prev) =>
         prev.map((r) =>

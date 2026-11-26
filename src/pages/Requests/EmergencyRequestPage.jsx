@@ -14,6 +14,7 @@ import {
   Users,
 } from 'lucide-react';
 import { requestService } from '../../services/requestService';
+import { notificationService } from '../../services/notificationService';
 import { useToast } from '../../context/ToastContext';
 import { Link } from 'react-router-dom';
 
@@ -55,6 +56,19 @@ export default function EmergencyRequestPage() {
 
       setActiveEmergency(result);
       setStage(2);
+
+      await notificationService.addNotification({
+        type: 'emergency',
+        rawType: 'EMERGENCY_REQUEST',
+        title: 'Emergency Siren Broadcast Active 🚨',
+        message: `High-priority requisition (${result.trackingId || 'EMERGENCY'}) for ${units} units of ${bloodGroup} at ${hospitalName} is broadcasting with sound sirens.`,
+        metadata: {
+          trackingId: result.trackingId,
+          bloodGroup,
+          hospitalName,
+          units,
+        },
+      });
 
       addToast({
         title: 'Emergency Broadcast Active!',

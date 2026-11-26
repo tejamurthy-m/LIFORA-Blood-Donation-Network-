@@ -16,6 +16,7 @@ import EmptyState from '../../components/common/EmptyState';
 import Modal from '../../components/common/Modal';
 import StatusBadge from '../../components/common/StatusBadge';
 import { donorService } from '../../services/donorService';
+import { notificationService } from '../../services/notificationService';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -194,6 +195,40 @@ export default function FindDonorsPage() {
         requester: requesterName.trim(),
         patientName: patientName.trim(),
       });
+
+      // Add audit notification to current user (recipient) inbox
+      await notificationService.addNotification({
+        type: isEmergency ? 'emergency' : 'response',
+        rawType: 'DIRECT_REQUEST',
+        title: 'Direct Request Dispatched 🩸',
+        message: `Your request for ${unitsNeeded} unit(s) of ${requestModalDonor.bloodGroup} blood has been delivered to verified donor ${requestModalDonor.fullName || requestModalDonor.name} for ${hospitalName}.`,
+        metadata: {
+          donorId: requestModalDonor.id,
+          donorName: requestModalDonor.fullName || requestModalDonor.name,
+          bloodGroup: requestModalDonor.bloodGroup,
+          hospitalName,
+          unitsNeeded,
+          patientName: patientName.trim(),
+        },
+      });
+
+      // If target donor is registered, ensure their notifications receive it as well
+      if (requestModalDonor.userId) {
+        await notificationService.addNotification({
+          userId: requestModalDonor.userId,
+          type: 'response',
+          rawType: 'DONOR_MATCH',
+          title: 'Direct Blood Requisition Received 🩸',
+          message: `${requesterName.trim() || user?.name || 'A patient'} has requested an urgent ${requestModalDonor.bloodGroup} blood donation from you for ${hospitalName}.`,
+          metadata: {
+            requesterId: user?.id,
+            requesterName: requesterName.trim() || user?.name,
+            patientName: patientName.trim(),
+            hospitalName,
+            unitsNeeded,
+          },
+        });
+      }
 
       addToast({
         title: 'Direct Request Dispatched!',

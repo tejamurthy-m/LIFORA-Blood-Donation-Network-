@@ -133,10 +133,22 @@ export const notificationService = {
     const user = getCurrentUser();
     const role = user?.role || 'donor';
 
+    // Load existing cached notifications so client-dispatched notifications are never lost
+    let cachedList = [];
+    try {
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw !== null) {
+        const parsed = JSON.parse(cachedRaw);
+        if (Array.isArray(parsed)) cachedList = parsed;
+      }
+    } catch {
+      cachedList = [];
+    }
+
     try {
       const res = await api.get('/notifications', { params: options });
       if (res.data?.success && Array.isArray(res.data.data)) {
-        const formatted = res.data.data.map((n) => ({
+        const backendFormatted = res.data.data.map((n) => ({
           id: n.id,
           type: mapBackendType(n.type),
           rawType: n.type,
@@ -149,10 +161,28 @@ export const notificationService = {
           hospital: n.metadata?.hospitalName || n.metadata?.hospital || 'Hospital Care Desk',
         }));
 
-        localStorage.setItem(cacheKey, JSON.stringify(formatted));
+        // Merge: prioritize backend records, but preserve any local notifications not in backend
+        const itemMap = new Map();
+        backendFormatted.forEach((item) => itemMap.set(item.id, item));
+        cachedList.forEach((item) => {
+          if (!itemMap.has(item.id)) {
+            itemMap.set(item.id, item);
+          }
+        });
+
+        let merged = Array.from(itemMap.values());
+        merged.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+        const clearedKey = `${cacheKey}_cleared`;
+        const wasCleared = localStorage.getItem(clearedKey) === 'true';
+        if (merged.length === 0 && !wasCleared) {
+          merged = getDefaultSeedNotifications(role);
+        }
+
+        localStorage.setItem(cacheKey, JSON.stringify(merged));
         return {
-          unreadCount: res.data.unreadCount ?? formatted.filter((n) => !n.read).length,
-          notifications: formatted,
+          unreadCount: merged.filter((n) => !n.read).length,
+          notifications: merged,
         };
       }
     } catch (e) {
@@ -160,15 +190,10 @@ export const notificationService = {
     }
 
     await simulatedDelay(150);
-    const cached = localStorage.getItem(cacheKey);
-    let list;
-    if (cached !== null) {
-      try {
-        list = JSON.parse(cached);
-      } catch {
-        list = getDefaultSeedNotifications(role);
-      }
-    } else {
+    const clearedKey = `${cacheKey}_cleared`;
+    const wasCleared = localStorage.getItem(clearedKey) === 'true';
+    let list = cachedList;
+    if (list.length === 0 && !wasCleared) {
       list = getDefaultSeedNotifications(role);
       localStorage.setItem(cacheKey, JSON.stringify(list));
     }
@@ -249,7 +274,54 @@ export const notificationService = {
     }
 
     localStorage.setItem(cacheKey, JSON.stringify([]));
+    localStorage.setItem(`${cacheKey}_cleared`, 'true');
     window.dispatchEvent(new CustomEvent('lifora:new_notification'));
     return true;
+  },
+
+  // Add a new notification directly into local and cache store
+  async addNotification(notifData) {
+    const user = getCurrentUser();
+    const userId = notifData.userId || user?.id || user?.email || 'guest';
+    const cacheKey = `lifora_notifications_${userId}`;
+
+    // Clear the explicit 'cleared' flag because user just received/created a fresh notification
+    localStorage.removeItem(`${cacheKey}_cleared`);
+
+    const newNotif = {
+      id: notifData.id || `notif_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      type: notifData.type || 'response',
+      rawType: notifData.rawType || 'DONOR_MATCH',
+      title: notifData.title || 'Notification',
+      message: notifData.message || '',
+      time: 'Just now',
+      read: false,
+      createdAt: notifData.createdAt || new Date().toISOString(),
+      metadata: notifData.metadata || {},
+      hospital: notifData.metadata?.hospitalName || notifData.metadata?.hospital || 'Hospital Care Desk',
+    };
+
+    try {
+      let list = [];
+      const cached = localStorage.getItem(cacheKey);
+      if (cached !== null) {
+        try {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) list = parsed;
+        } catch {
+          list = [];
+        }
+      } else {
+        list = getDefaultSeedNotifications(user?.role || 'recipient');
+      }
+
+      list.unshift(newNotif);
+      localStorage.setItem(cacheKey, JSON.stringify(list));
+      window.dispatchEvent(new CustomEvent('lifora:new_notification'));
+    } catch (e) {
+      console.warn('Error saving local notification:', e.message);
+    }
+
+    return newNotif;
   },
 };

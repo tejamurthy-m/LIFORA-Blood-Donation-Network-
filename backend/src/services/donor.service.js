@@ -404,6 +404,40 @@ export const donorService = {
       }
     }
 
+    // 2. Create in-app notification for the requesting user (recipient)
+    if (requestingUser?.id) {
+      const recipientNotif = await prisma.notification.create({
+        data: {
+          userId: requestingUser.id,
+          type: 'DONOR_MATCH',
+          title: 'Direct Request Dispatched 🩸',
+          message: `Your direct blood request for ${requestData?.unitsNeeded || 1} unit(s) of ${donor.bloodGroup} blood has been delivered to verified donor ${donor.fullName || donor.name}${hospitalContext}.`,
+          metadata: {
+            donorId: donor.id,
+            donorUserId: donor.userId,
+            donorName: donor.fullName || donor.name,
+            bloodGroup: donor.bloodGroup,
+            ...requestData,
+          },
+        },
+      }).catch((e) => {
+        console.warn('Recipient notification create warning:', e.message);
+        return null;
+      });
+
+      if (recipientNotif) {
+        emitToUser(requestingUser.id, 'notification:received', {
+          id: recipientNotif.id,
+          type: recipientNotif.type,
+          title: recipientNotif.title,
+          message: recipientNotif.message,
+          metadata: recipientNotif.metadata,
+          isRead: false,
+          createdAt: recipientNotif.createdAt.toISOString(),
+        });
+      }
+    }
+
     return {
       success: true,
       message: `Direct request dispatched. The donor (${donor.fullName}) has been notified via verified notification.`,

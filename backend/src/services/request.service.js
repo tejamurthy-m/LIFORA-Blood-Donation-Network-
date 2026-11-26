@@ -384,6 +384,36 @@ export const requestService = {
             }
           }
         }
+
+        // Notify the requesting user that their requisition broadcast is live
+        if (user?.id) {
+          const reqNotif = await prisma.notification.create({
+            data: {
+              userId: user.id,
+              type: mappedUrgency === 'EMERGENCY' ? 'EMERGENCY_REQUEST' : 'REQUEST_BROADCAST',
+              title: mappedUrgency === 'EMERGENCY' ? 'Emergency Broadcast Active 🚨' : 'Blood Requisition Dispatched 📋',
+              message: `Your requisition (${newRequest.trackingCode}) for ${newRequest.unitsRequired} unit(s) of ${bloodGroup} at ${newRequest.locationDescription} has been broadcast to nearby matching donors.`,
+              metadata: {
+                requestId: newRequest.id,
+                trackingCode: newRequest.trackingCode,
+                bloodGroup,
+                unitsRequired: newRequest.unitsRequired,
+              },
+            },
+          }).catch(() => null);
+
+          if (reqNotif) {
+            emitToUser(user.id, 'notification:received', {
+              id: reqNotif.id,
+              type: reqNotif.type,
+              title: reqNotif.title,
+              message: reqNotif.message,
+              metadata: reqNotif.metadata,
+              isRead: false,
+              createdAt: reqNotif.createdAt.toISOString(),
+            });
+          }
+        }
       } catch (err) {
         // Silently capture broadcast errors
       }
