@@ -27,6 +27,7 @@ import UserNotificationsView from '../../components/dashboard/UserNotificationsV
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { requestService } from '../../services/requestService';
+import { donorService } from '../../services/donorService';
 
 export default function RecipientDashboard() {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ export default function RecipientDashboard() {
   const location = useLocation();
 
   const [requests, setRequests] = useState([]);
+  const [nearbyDonors, setNearbyDonors] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Sync route path to specific views
@@ -51,10 +53,18 @@ export default function RecipientDashboard() {
         setLoading(false);
       }
     });
+
+    const userCity = user?.city || 'Bangalore';
+    donorService.getDonors({ city: userCity, onlyAvailable: true, sortBy: 'distance' }).then((donors) => {
+      if (isMounted && Array.isArray(donors)) {
+        setNearbyDonors(donors.slice(0, 8));
+      }
+    });
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user?.city]);
 
   const handleCopyCode = (code) => {
     navigator.clipboard.writeText(code);
@@ -397,7 +407,89 @@ export default function RecipientDashboard() {
         </Link>
       </div>
 
-      {/* 4. Active Blood Requests Table & Live Status */}
+      {/* 4. Nearby Available Donors Preview */}
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-bold text-[#172033]">
+                Nearby Available Donors in {user?.city || 'Bangalore'}
+              </h3>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Live Matching
+              </span>
+            </div>
+            <p className="text-xs text-[#64748B] mt-0.5">
+              Verified life-savers active in your local vicinity ready for emergency and scheduled requisition dispatch
+            </p>
+          </div>
+
+          <Link
+            to="/recipient/find-donors"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-[#C1123F] hover:text-[#9E0E32]"
+          >
+            <span>Explore All Donors Registry</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {nearbyDonors.length === 0 ? (
+          <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-100">
+            <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+            <p className="text-xs text-slate-500 font-medium">Scanning for available donors in {user?.city || 'Bangalore'}...</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {nearbyDonors.map((donor) => (
+              <div
+                key={donor.id || donor.userId}
+                className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-[#C1123F]/30 hover:shadow-md transition-all space-y-3 group"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#C1123F] to-[#F04462] text-white flex items-center justify-center font-black text-sm shadow-xs">
+                    {donor.bloodGroup}
+                  </div>
+                  <div className="text-right">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-[#16A36A] font-bold text-[10px] border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#16A36A] animate-pulse" />
+                      Available
+                    </span>
+                    {donor.distanceKm != null && (
+                      <span className="block text-[11px] font-semibold text-slate-500 mt-1">
+                        ~{donor.distanceKm} km away
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-sm text-[#172033] group-hover:text-[#C1123F] transition-colors truncate">
+                    {donor.name || donor.fullName}
+                  </h4>
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{donor.area ? `${donor.area}, ` : ''}{donor.city}</span>
+                  </p>
+                </div>
+
+                <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs">
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {donor.totalDonations || 0} Donations
+                  </span>
+                  <Link
+                    to={`/recipient/find-donors?bloodGroup=${donor.bloodGroup}&search=${donor.area || donor.city}`}
+                    className="text-[11px] font-bold text-[#C1123F] hover:underline"
+                  >
+                    Request →
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* 5. Active Blood Requests Table & Live Status */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>

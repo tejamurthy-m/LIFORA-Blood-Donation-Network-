@@ -136,8 +136,8 @@ export const donorService = {
       where.isAvailable = true;
     }
 
-    // Clinical verification filter: only donors with approved verification appear in verified matching
-    if (onlyVerified !== false && onlyVerified !== 'false') {
+    // Verification filter: only filter by VERIFIED if caller explicitly asks for verified-only
+    if (onlyVerified === true || onlyVerified === 'true') {
       where.verificationStatus = 'VERIFIED';
     }
 
@@ -205,12 +205,13 @@ export const donorService = {
       );
     }
 
-    // Sorting
-    if (sortBy === 'distance') {
-      list.sort((a, b) => a.distanceKm - b.distanceKm);
-    } else if (sortBy === 'donations') {
+    // Sorting (default to distance so closest donors always appear first)
+    const effectiveSort = sortBy || 'distance';
+    if (effectiveSort === 'distance') {
+      list.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+    } else if (effectiveSort === 'donations') {
       list.sort((a, b) => b.totalDonations - a.totalDonations);
-    } else if (sortBy === 'response') {
+    } else if (effectiveSort === 'response') {
       list.sort((a, b) => a.avgResponseMinutes - b.avgResponseMinutes);
     }
 

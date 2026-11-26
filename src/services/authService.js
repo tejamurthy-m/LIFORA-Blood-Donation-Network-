@@ -1,10 +1,86 @@
 import api, { simulatedDelay } from './api';
 export { default as api } from './api';
 import { INITIAL_USERS } from './mockData';
+import { getStoredDonors, saveStoredDonors, resolveCoordinates } from './donorService';
 
 const USERS_STORAGE_KEY = 'lifora_registered_users';
 const CURRENT_USER_STORAGE_KEY = 'lifora_current_user';
 const TOKEN_STORAGE_KEY = 'lifora_auth_token';
+
+// Helper to keep donor registry synchronized across profile updates, registration, and logins
+export const syncDonorRecord = (userRecord) => {
+  if (!userRecord || (userRecord.role !== 'donor' && userRecord.role !== 'DONOR')) return;
+  try {
+    const donors = [...getStoredDonors()];
+    const currentName = (userRecord.fullName || userRecord.name || '').trim().toLowerCase();
+    const currentEmail = (userRecord.email || '').trim().toLowerCase();
+    const targetCity = userRecord.city || 'Bangalore';
+    const targetArea = userRecord.area || 'Basavanagudi';
+    const coords = resolveCoordinates(targetCity, targetArea);
+
+    const dIdx = donors.findIndex(
+      (d) =>
+        d.id === userRecord.id ||
+        d.userId === userRecord.id ||
+        (d.email && d.email.toLowerCase() === currentEmail) ||
+        (d.fullName && d.fullName.toLowerCase() === currentName) ||
+        (d.name && d.name.toLowerCase() === currentName)
+    );
+
+    if (dIdx !== -1) {
+      donors[dIdx] = {
+        ...donors[dIdx],
+        name: userRecord.name || donors[dIdx].name,
+        fullName: userRecord.fullName || userRecord.name || donors[dIdx].fullName,
+        phone: userRecord.phone || donors[dIdx].phone,
+        bloodGroup: userRecord.bloodGroup || donors[dIdx].bloodGroup,
+        city: targetCity,
+        area: targetArea,
+        lat: coords.lat,
+        lng: coords.lng,
+        bio: userRecord.bio !== undefined ? userRecord.bio : donors[dIdx].bio,
+        isAvailable: userRecord.isAvailable !== undefined ? Boolean(userRecord.isAvailable) : donors[dIdx].isAvailable,
+        badge: userRecord.badge || donors[dIdx].badge,
+        verified: userRecord.verificationStatus === 'VERIFIED' || donors[dIdx].verified || true,
+        verificationStatus: userRecord.verificationStatus || donors[dIdx].verificationStatus || 'VERIFIED',
+      };
+    } else {
+      const newDonorEntry = {
+        id: userRecord.id || `donor_${Date.now()}`,
+        donorId: userRecord.id || `donor_${Date.now()}`,
+        userId: userRecord.id,
+        name: userRecord.name || userRecord.fullName,
+        fullName: userRecord.fullName || userRecord.name,
+        email: userRecord.email,
+        phone: userRecord.phone || '+91 98450 00000',
+        bloodGroup: userRecord.bloodGroup || 'O+',
+        city: targetCity,
+        area: targetArea,
+        lat: coords.lat,
+        lng: coords.lng,
+        distanceKm: null,
+        isAvailable: userRecord.isAvailable !== undefined ? Boolean(userRecord.isAvailable) : true,
+        emergencyReady: true,
+        badge: userRecord.badge || 'Verified Donor',
+        totalDonations: userRecord.totalDonations ?? 0,
+        lastDonationDate: userRecord.lastDonationDate || 'Recently',
+        compatibility: ['O+', 'A+', 'B+', 'AB+'],
+        verified: true,
+        verificationStatus: userRecord.verificationStatus || 'VERIFIED',
+        age: userRecord.age || 28,
+        responseRate: '98%',
+        avgResponseMinutes: 14,
+        bio: userRecord.bio || 'Voluntary donor dedicated to emergency units.',
+        avatar: userRecord.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      };
+      donors.unshift(newDonorEntry);
+    }
+
+    saveStoredDonors(donors);
+  } catch (err) {
+    console.warn('syncDonorRecord error:', err.message);
+  }
+};
 
 // Ensure seed users are loaded into localStorage on initial run
 export const getStoredUsers = () => {
@@ -73,6 +149,8 @@ export const authService = {
         localStorage.setItem('lifora_token', token);
         localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(normalizedUser));
 
+        syncDonorRecord(normalizedUser);
+
         return { user: normalizedUser, token };
       }
     } catch (e) {
@@ -99,6 +177,8 @@ export const authService = {
     localStorage.setItem(TOKEN_STORAGE_KEY, mockToken);
     localStorage.setItem('lifora_token', mockToken);
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(user));
+
+    syncDonorRecord(user);
 
     return { user, token: mockToken };
   },
@@ -150,6 +230,8 @@ export const authService = {
         localStorage.setItem('lifora_token', token);
         localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(normalizedUser));
 
+        syncDonorRecord(normalizedUser);
+
         return { user: normalizedUser, token };
       }
     } catch (e) {
@@ -195,6 +277,8 @@ export const authService = {
     localStorage.setItem('lifora_token', mockToken);
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(newUser));
 
+    syncDonorRecord(newUser);
+
     return { user: newUser, token: mockToken };
   },
 
@@ -235,27 +319,8 @@ export const authService = {
           saveStoredUsers(users);
         }
 
-        // Sync stored donors if donor
-        try {
-          const rawDonors = localStorage.getItem('lifora_donors_data');
-          if (rawDonors) {
-            const donors = JSON.parse(rawDonors);
-            const dIdx = donors.findIndex((d) => d.id === currentUser.id || d.userId === currentUser.id || d.name === currentUser.name || d.fullName === currentUser.name);
-            if (dIdx !== -1) {
-              donors[dIdx] = {
-                ...donors[dIdx],
-                name: updated.name || donors[dIdx].name,
-                fullName: updated.fullName || updated.name || donors[dIdx].fullName,
-                phone: updated.phone || donors[dIdx].phone,
-                bloodGroup: updated.bloodGroup || donors[dIdx].bloodGroup,
-                city: updated.city || donors[dIdx].city,
-                area: updated.area || donors[dIdx].area,
-                bio: updated.bio || donors[dIdx].bio,
-              };
-              localStorage.setItem('lifora_donors_data', JSON.stringify(donors));
-            }
-          }
-        } catch {}
+        // Sync stored donors registry
+        syncDonorRecord(updated);
 
         return updated;
       }
@@ -268,33 +333,14 @@ export const authService = {
     localStorage.setItem(CURRENT_USER_STORAGE_KEY, JSON.stringify(updated));
 
     const users = getStoredUsers();
-    const idx = users.findIndex((u) => u.id === currentUser.id);
+    const idx = users.findIndex((u) => u.id === currentUser.id || u.email === currentUser.email);
     if (idx !== -1) {
       users[idx] = updated;
       saveStoredUsers(users);
     }
 
-    // Sync stored donors in fallback
-    try {
-      const rawDonors = localStorage.getItem('lifora_donors_data');
-      if (rawDonors) {
-        const donors = JSON.parse(rawDonors);
-        const dIdx = donors.findIndex((d) => d.id === currentUser.id || d.userId === currentUser.id || d.name === currentUser.name || d.fullName === currentUser.name);
-        if (dIdx !== -1) {
-          donors[dIdx] = {
-            ...donors[dIdx],
-            name: updated.name || donors[dIdx].name,
-            fullName: updated.fullName || updated.name || donors[dIdx].fullName,
-            phone: updated.phone || donors[dIdx].phone,
-            bloodGroup: updated.bloodGroup || donors[dIdx].bloodGroup,
-            city: updated.city || donors[dIdx].city,
-            area: updated.area || donors[dIdx].area,
-            bio: updated.bio || donors[dIdx].bio,
-          };
-          localStorage.setItem('lifora_donors_data', JSON.stringify(donors));
-        }
-      }
-    } catch {}
+    // Sync stored donors registry in fallback
+    syncDonorRecord(updated);
 
     return updated;
   },

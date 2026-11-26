@@ -46,6 +46,18 @@ export const AREA_COORDINATES = {
   'marathahalli': { lat: 12.9591, lng: 77.6974 },
   'rajajinagar': { lat: 12.9982, lng: 77.5530 },
   'btm layout': { lat: 12.9166, lng: 77.6101 },
+  'vijayanagar': { lat: 12.9719, lng: 77.5306 },
+  'vijayanagara': { lat: 12.9719, lng: 77.5306 },
+  'banashankari': { lat: 12.9255, lng: 77.5468 },
+  'yelahanka': { lat: 13.1007, lng: 77.5963 },
+  'nagarbhavi': { lat: 12.9642, lng: 77.5111 },
+  'bellandur': { lat: 12.9304, lng: 77.6784 },
+  'sarjapur': { lat: 12.8600, lng: 77.7860 },
+  'kengeri': { lat: 12.9177, lng: 77.4838 },
+  'madiwala': { lat: 12.9226, lng: 77.6174 },
+  'frazer town': { lat: 12.9968, lng: 77.6131 },
+  'mg road': { lat: 12.9756, lng: 77.6066 },
+  'shantinagar': { lat: 12.9569, lng: 77.5986 },
 
   // Mumbai areas
   'bandra': { lat: 19.0596, lng: 72.8295 },
