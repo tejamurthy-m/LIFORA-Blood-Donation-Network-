@@ -108,7 +108,7 @@ export default function DonorDashboard() {
   };
 
   const handleAcceptRequest = async (requestId) => {
-    const donorName = user?.name || user?.fullName || 'Dr. Aryan Sharma';
+    const donorName = user?.name || user?.fullName || 'Lifesaver Donor';
     try {
       const updated = await requestService.acceptRequest(
         requestId,
@@ -185,7 +185,7 @@ export default function DonorDashboard() {
     });
   };
 
-  const donorName = user?.name || user?.fullName || 'Dr. Aryan Sharma';
+  const donorName = user?.name || user?.fullName || 'Lifesaver Donor';
 
   const isAcceptedByMe = (r) => {
     if (r.acceptedByMe) return true;
@@ -282,7 +282,7 @@ export default function DonorDashboard() {
           status: r.screeningPassed ? 'Verified & Completed' : 'Deferred',
           certificateId: `LIF-DON-${r.id.substring(0, 6).toUpperCase()}`,
         }))
-      : defaultHistorySeed;
+      : (user?.email === 'donor@lifora.org' ? defaultHistorySeed : []);
 
   // Sub-view: Availability Status
   const renderAvailabilityView = () => (
@@ -415,39 +415,61 @@ export default function DonorDashboard() {
   );
 
   // Sub-view: Donation History
-  const renderHistoryView = () => (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-        <div>
-          <h2 className="text-xl font-bold text-[#172033]">Donation History & Digital Certificates</h2>
-          <p className="text-xs text-[#64748B]">Official hospital-verified transfusion records</p>
-        </div>
-        <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
-          Golden Donor Badge
-        </span>
-      </div>
+  const renderHistoryView = () => {
+    const donationCount = user?.totalDonations ?? (realDonations.length || 0);
+    const donorBadgeLabel =
+      donationCount >= 10
+        ? 'Golden Life Saver'
+        : donationCount >= 5
+        ? 'Silver Donor Badge'
+        : donationCount >= 1
+        ? 'Verified Life Saver'
+        : 'New Life Saver';
 
-      <div className="divide-y divide-slate-100">
-        {donationHistory.map((item) => (
-          <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#16A36A] flex items-center justify-center shrink-0 mt-0.5">
-                <Heart className="w-5 h-5 fill-current" />
-              </div>
-              <div>
-                <h4 className="font-bold text-slate-900">{item.hospital}</h4>
-                <p className="text-slate-500 mt-0.5">{item.units} • {item.purpose}</p>
-                <p className="text-[10px] text-slate-400 font-mono mt-0.5">Certificate ID: {item.certificateId} • {item.date}</p>
-              </div>
-            </div>
-            <span className="text-emerald-700 font-bold flex items-center gap-1 self-start sm:self-auto">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-            </span>
+    return (
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-xl font-bold text-[#172033]">Donation History & Digital Certificates</h2>
+            <p className="text-xs text-[#64748B]">Official hospital-verified transfusion records</p>
           </div>
-        ))}
+          <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+            {donorBadgeLabel}
+          </span>
+        </div>
+
+        {donationHistory.length === 0 ? (
+          <div className="text-center py-12 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+            <Heart className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+            <p className="font-bold text-slate-700 text-sm">No donation records yet</p>
+            <p className="mt-1 max-w-sm mx-auto">
+              Once you complete blood donations at registered hospitals, your verified clinical certificates will be archived here.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {donationHistory.map((item) => (
+              <div key={item.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#16A36A] flex items-center justify-center shrink-0 mt-0.5">
+                    <Heart className="w-5 h-5 fill-current" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900">{item.hospital}</h4>
+                    <p className="text-slate-500 mt-0.5">{item.units} • {item.purpose}</p>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">Certificate ID: {item.certificateId} • {item.date}</p>
+                  </div>
+                </div>
+                <span className="text-emerald-700 font-bold flex items-center gap-1 self-start sm:self-auto">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  };
 
   // Sub-view: Blood Requests List
   const renderRequestsView = () => (
@@ -485,115 +507,146 @@ export default function DonorDashboard() {
   );
 
   // Sub-view: Overview
-  const renderOverviewView = () => (
-    <div className="space-y-8">
-      {/* 1. Welcome Banner Card */}
-      <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#172033] via-[#222E47] to-[#172033] text-white p-6 sm:p-8 shadow-xl">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-[#C1123F]/20 rounded-full blur-3xl pointer-events-none" />
+  const renderOverviewView = () => {
+    const donationCount = user?.totalDonations ?? (realDonations.length || 0);
+    const livesSavedCount = donationCount * 3;
 
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-rose-200 text-xs font-semibold border border-white/10">
-              <Sparkles className="w-3.5 h-3.5 text-[#F04462]" />
-              <span>Verified Life Saver • {user?.bloodGroup || 'O+'}</span>
+    const isVerifiedDonor =
+      user?.verificationStatus === 'APPROVED' ||
+      user?.verificationStatus === 'VERIFIED' ||
+      user?.badge === 'Verified Life Saver';
+    const isPendingVerification = user?.verificationStatus === 'PENDING';
+    const isRejectedVerification = user?.verificationStatus === 'REJECTED';
+
+    const badgeLabel = isVerifiedDonor
+      ? `Verified Life Saver • ${user?.bloodGroup || 'O+'}`
+      : isPendingVerification
+      ? `New Donor (Verification Pending) • ${user?.bloodGroup || 'O+'}`
+      : isRejectedVerification
+      ? `Verification Resubmission Required • ${user?.bloodGroup || 'O+'}`
+      : `Voluntary Donor • ${user?.bloodGroup || 'O+'}`;
+
+    return (
+      <div className="space-y-8">
+        {/* 1. Welcome Banner Card */}
+        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#172033] via-[#222E47] to-[#172033] text-white p-6 sm:p-8 shadow-xl">
+          <div className="absolute top-0 right-0 w-80 h-80 bg-[#C1123F]/20 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div
+                className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold border ${
+                  isPendingVerification
+                    ? 'bg-amber-500/20 text-amber-200 border-amber-400/30'
+                    : isRejectedVerification
+                    ? 'bg-red-500/20 text-red-200 border-red-400/30'
+                    : 'bg-white/10 text-rose-200 border-white/10'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-[#F04462]" />
+                <span>{badgeLabel}</span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
+                Welcome back, {user?.name || user?.fullName || 'Lifesaver'}
+              </h2>
+
+              <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
+                {donationCount > 0
+                  ? `Your blood donations have directly helped save ${livesSavedCount} ${
+                      livesSavedCount === 1 ? 'patient' : 'patients'
+                    }. Keep your availability updated to receive instant local hospital matches.`
+                  : 'Welcome to the LIFORA network! Keep your availability updated to receive instant local hospital matches and save lives.'}
+              </p>
             </div>
 
-            <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Welcome back, {user?.name || 'Dr. Aryan Sharma'}
-            </h2>
+            {/* Quick Availability Switch Card */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 flex items-center gap-4 self-start md:self-auto min-w-[220px]">
+              <div className="flex-1">
+                <span className="block text-[11px] uppercase tracking-wider text-slate-300 font-bold">
+                  Availability Status
+                </span>
+                <span className="text-sm font-extrabold text-white flex items-center gap-1.5 mt-0.5">
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      user?.isAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+                    }`}
+                  />
+                  {user?.isAvailable ? 'Ready for Donation' : 'Currently Paused'}
+                </span>
+              </div>
 
-            <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-              Your blood donations have directly helped save 27 patients. Keep your availability updated to receive instant local hospital matches.
-            </p>
-          </div>
-
-          {/* Quick Availability Switch Card */}
-          <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 flex items-center gap-4 self-start md:self-auto min-w-[220px]">
-            <div className="flex-1">
-              <span className="block text-[11px] uppercase tracking-wider text-slate-300 font-bold">
-                Availability Status
-              </span>
-              <span className="text-sm font-extrabold text-white flex items-center gap-1.5 mt-0.5">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    user?.isAvailable ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'
+              <button
+                type="button"
+                onClick={handleToggleAvailability}
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
+                  user?.isAvailable ? 'bg-[#16A36A]' : 'bg-slate-500'
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                    user?.isAvailable ? 'translate-x-6' : 'translate-x-0'
                   }`}
                 />
-                {user?.isAvailable ? 'Ready for Donation' : 'Currently Paused'}
+              </button>
+            </div>
+          </div>
+
+          {/* Profile Completion Indicator */}
+          <div className="mt-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <span className="font-semibold text-slate-300 whitespace-nowrap">
+                Profile Completion: {user?.profileCompletion ?? 80}%
               </span>
+              <div className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-400 to-[#16A36A] rounded-full"
+                  style={{ width: `${user?.profileCompletion ?? 80}%` }}
+                />
+              </div>
             </div>
-
-            <button
-              type="button"
-              onClick={handleToggleAvailability}
-              className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors cursor-pointer ${
-                user?.isAvailable ? 'bg-[#16A36A]' : 'bg-slate-500'
-              }`}
+            <Link
+              to="/donor/profile"
+              className="text-emerald-300 hover:text-white font-medium flex items-center gap-1 transition-colors"
             >
-              <div
-                className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
-                  user?.isAvailable ? 'translate-x-6' : 'translate-x-0'
-                }`}
-              />
-            </button>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>Complete Remaining Details →</span>
+            </Link>
           </div>
         </div>
 
-        {/* Profile Completion Indicator */}
-        <div className="mt-6 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-3 flex-1 max-w-md">
-            <span className="font-semibold text-slate-300 whitespace-nowrap">
-              Profile Completion: {user?.profileCompletion || 92}%
-            </span>
-            <div className="flex-1 h-2 rounded-full bg-white/20 overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-400 to-[#16A36A] rounded-full"
-                style={{ width: `${user?.profileCompletion || 92}%` }}
-              />
-            </div>
-          </div>
-          <Link
-            to="/donor/profile"
-            className="text-emerald-300 hover:text-white font-medium flex items-center gap-1 transition-colors"
-          >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Complete Remaining Details →</span>
-          </Link>
+        {/* 2. Stat Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <StatCard
+            title="Total Donations"
+            value={`${donationCount} ${donationCount === 1 ? 'Time' : 'Times'}`}
+            subtitle={donationCount > 0 ? `${(donationCount * 0.45).toFixed(1)} L blood contributed` : 'Ready for first donation'}
+            icon={Heart}
+            colorScheme="crimson"
+            trend={donationCount > 0 ? `+${donationCount} this year` : undefined}
+          />
+          <StatCard
+            title="Pending Requests"
+            value={pendingRequestsCount}
+            subtitle="Nearby hospital alerts"
+            icon={Clock}
+            colorScheme="amber"
+          />
+          <StatCard
+            title="Lives Saved"
+            value={`${livesSavedCount} ${livesSavedCount === 1 ? 'Patient' : 'Patients'}`}
+            subtitle={donationCount > 0 ? 'Pediatric & surgery units' : 'Awaiting first donation'}
+            icon={Activity}
+            colorScheme="emerald"
+          />
+          <StatCard
+            title="Next Eligible Date"
+            value="Available Now"
+            subtitle={donationCount > 0 ? '90+ days since last donation' : 'Ready for initial screening'}
+            icon={Calendar}
+            colorScheme="blue"
+          />
         </div>
-      </div>
-
-      {/* 2. Stat Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-        <StatCard
-          title="Total Donations"
-          value={`${user?.totalDonations || 9} Times`}
-          subtitle="9.4 L blood contributed"
-          icon={Heart}
-          colorScheme="crimson"
-          trend="+2 this year"
-        />
-        <StatCard
-          title="Pending Requests"
-          value={pendingRequestsCount}
-          subtitle="Nearby hospital alerts"
-          icon={Clock}
-          colorScheme="amber"
-        />
-        <StatCard
-          title="Lives Saved"
-          value="27 Patients"
-          subtitle="Pediatric & surgery units"
-          icon={Activity}
-          colorScheme="emerald"
-        />
-        <StatCard
-          title="Next Eligible Date"
-          value="Available Now"
-          subtitle="90+ days since last donation"
-          icon={Calendar}
-          colorScheme="blue"
-        />
-      </div>
 
       {/* 3. Quick Action Buttons Row */}
       <div className="flex flex-wrap items-center gap-3">
@@ -663,25 +716,34 @@ export default function DonorDashboard() {
       {/* 6. Recent Activity Feed */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/90 shadow-sm space-y-4">
         <h3 className="font-bold text-base text-[#172033]">Recent Contribution Activity</h3>
-        <div className="divide-y divide-slate-100 text-xs">
-          {donationHistory.map((item) => (
-            <div key={item.id} className="py-3.5 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-4 h-4" />
+        {donationHistory.length === 0 ? (
+          <div className="text-center py-8 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500">
+            <Heart className="w-6 h-6 mx-auto text-slate-300 mb-2" />
+            <p className="font-bold text-slate-700">No donation records yet</p>
+            <p className="mt-0.5">Your verified hospital donations and clinical transfusion certificates will appear here.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 text-xs">
+            {donationHistory.map((item) => (
+              <div key={item.id} className="py-3.5 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">{item.hospital}</p>
+                    <p className="text-slate-500 text-[11px]">{item.units} • {item.purpose}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-slate-800">{item.hospital}</p>
-                  <p className="text-slate-500 text-[11px]">{item.units} • {item.purpose}</p>
-                </div>
+                <span className="font-mono text-[11px] text-slate-400">{item.date}</span>
               </div>
-              <span className="font-mono text-[11px] text-slate-400">{item.date}</span>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
+};
 
   // Render active route sub-view
   const renderCurrentView = () => {

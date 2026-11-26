@@ -14,10 +14,14 @@ import {
   ArrowRight,
   ShieldCheck,
   FileCheck2,
+  CheckCircle2,
+  KeyRound,
+  RotateCw,
 } from 'lucide-react';
 import LiforaLogo from '../../components/common/LiforaLogo';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
+import { authService } from '../../services/authService';
 import { hospitalService } from '../../services/hospitalService';
 import { getStoredHospitalData, saveStoredHospitalData } from '../../services/hospitalPortalService';
 
@@ -42,6 +46,15 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Phone OTP Verification State
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [isPhoneVerified, setIsPhoneVerified] = useState(false);
+  const [isSendingOtp, setIsSendingOtp] = useState(false);
+  const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+  const [devOtp, setDevOtp] = useState('');
+  const [otpError, setOtpError] = useState('');
+
   // Hospital Specific Fields
   const [licenseNumber, setLicenseNumber] = useState('');
   const [bedCapacity, setBedCapacity] = useState('250');
@@ -51,6 +64,77 @@ export default function RegisterPage() {
   const { register } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+
+  const handleSendOtp = async (targetPhone = phone) => {
+    if (!targetPhone || targetPhone.trim().length < 8) {
+      setError('Please provide a valid phone number (at least 8 digits) to receive OTP.');
+      return false;
+    }
+    setError('');
+    setOtpError('');
+    setIsSendingOtp(true);
+    try {
+      const res = await authService.sendPhoneOtp(targetPhone);
+      setOtpSent(true);
+      if (res?.devOtp) {
+        setDevOtp(res.devOtp);
+        setPhoneOtp(res.devOtp); // Auto-fill for quick testing in dev
+        addToast({
+          title: 'OTP Dispatched',
+          message: `Code sent to ${targetPhone}. [Test Code: ${res.devOtp}]`,
+          type: 'info',
+        });
+      } else {
+        addToast({
+          title: 'OTP Dispatched',
+          message: `Verification code sent to ${targetPhone}. Valid for 10 minutes.`,
+          type: 'info',
+        });
+      }
+      return true;
+    } catch (err) {
+      const msg = err.message || 'Failed to dispatch phone verification OTP.';
+      setOtpError(msg);
+      addToast({
+        title: 'OTP Dispatch Failed',
+        message: msg,
+        type: 'error',
+      });
+      return false;
+    } finally {
+      setIsSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!phoneOtp || phoneOtp.trim().length < 4) {
+      setOtpError('Please enter the 6-digit verification code.');
+      return false;
+    }
+    setOtpError('');
+    setIsVerifyingOtp(true);
+    try {
+      await authService.verifyPhoneOtp(phone, phoneOtp);
+      setIsPhoneVerified(true);
+      addToast({
+        title: 'Phone Verified ✓',
+        message: 'Your phone number has been verified successfully.',
+        type: 'success',
+      });
+      return true;
+    } catch (err) {
+      const msg = err.message || 'Invalid or expired OTP code.';
+      setOtpError(msg);
+      addToast({
+        title: 'Verification Failed',
+        message: msg,
+        type: 'error',
+      });
+      return false;
+    } finally {
+      setIsVerifyingOtp(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -91,6 +175,24 @@ export default function RegisterPage() {
       return;
     }
 
+    // Require phone OTP verification for reliable account validation
+    if (!isPhoneVerified) {
+      if (!otpSent) {
+        const sent = await handleSendOtp(phone);
+        if (sent) {
+          setError('We have dispatched a verification code to your phone. Please enter the OTP to complete registration.');
+        }
+        return;
+      }
+      if (phoneOtp.trim().length >= 4) {
+        const verified = await handleVerifyOtp();
+        if (!verified) return;
+      } else {
+        setError('Please enter and verify the 6-digit OTP code sent to your phone number.');
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       if (role === 'hospital') {
@@ -103,6 +205,7 @@ export default function RegisterPage() {
           staffRole: 'hospital_admin',
           city,
           area: area.trim() || 'Central Healthcare Campus',
+          isPhoneVerified: true,
           password,
         });
 
@@ -169,6 +272,7 @@ export default function RegisterPage() {
           bloodGroup: role === 'donor' ? bloodGroup : undefined,
           city,
           area: area.trim() || 'Central',
+          isPhoneVerified: true,
           password,
         });
 
@@ -385,11 +489,28 @@ export default function RegisterPage() {
                 </div>
               </div>
 
-              {/* Phone */}
+              {/* Phone with OTP Verification */}
               <div>
-                <label className="block text-xs font-bold text-[#172033] mb-1.5">
-                  {role === 'hospital' ? 'Blood Bank Emergency Desk Phone' : 'Phone Number (Protected)'}
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-[#172033]">
+                    {role === 'hospital' ? 'Blood Bank Emergency Desk Phone' : 'Phone Number (Protected)'}
+                  </label>
+                  {isPhoneVerified ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Verified
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={isSendingOtp || phone.trim().length < 8}
+                      onClick={() => handleSendOtp()}
+                      className="text-[11px] font-bold text-[#C1123F] hover:text-[#9E0E32] hover:underline disabled:opacity-40 disabled:no-underline cursor-pointer flex items-center gap-1"
+                    >
+                      {isSendingOtp ? 'Sending code...' : otpSent ? 'Resend OTP' : 'Verify via OTP'}
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -397,10 +518,79 @@ export default function RegisterPage() {
                     required
                     placeholder="+91 98765 43210"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#C1123F]/20 focus:border-[#C1123F]"
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      if (isPhoneVerified) setIsPhoneVerified(false);
+                      if (otpSent) setOtpSent(false);
+                    }}
+                    className={`w-full pl-10 pr-24 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 ${
+                      isPhoneVerified
+                        ? 'border-emerald-300 bg-emerald-50/30 focus:ring-emerald-500/20 focus:border-emerald-500'
+                        : 'border-slate-200 focus:ring-[#C1123F]/20 focus:border-[#C1123F]'
+                    }`}
                   />
+                  {!isPhoneVerified && (
+                    <button
+                      type="button"
+                      disabled={isSendingOtp || phone.trim().length < 8}
+                      onClick={() => handleSendOtp()}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 text-xs font-bold bg-rose-50 hover:bg-rose-100 text-[#C1123F] border border-rose-200 rounded-lg transition-colors disabled:opacity-40 cursor-pointer"
+                    >
+                      {isSendingOtp ? 'Sending...' : otpSent ? 'Resend' : 'Send OTP'}
+                    </button>
+                  )}
                 </div>
+
+                {/* OTP Entry Card */}
+                {otpSent && !isPhoneVerified && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-2.5 p-3.5 bg-rose-50/80 border border-rose-200/90 rounded-2xl space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                        <KeyRound className="w-3.5 h-3.5 text-[#C1123F]" />
+                        Enter 6-digit OTP Code:
+                      </span>
+                      {devOtp && (
+                        <button
+                          type="button"
+                          onClick={() => setPhoneOtp(devOtp)}
+                          className="text-[10px] font-mono font-bold text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded border border-amber-300 cursor-pointer"
+                        >
+                          Auto-fill Dev OTP: {devOtp}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        maxLength="6"
+                        placeholder="••••••"
+                        value={phoneOtp}
+                        onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, ''))}
+                        className="flex-1 px-3.5 py-2 rounded-xl bg-white border border-rose-200 font-mono text-center tracking-widest text-base font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#C1123F]/30"
+                      />
+                      <button
+                        type="button"
+                        disabled={isVerifyingOtp || phoneOtp.length < 4}
+                        onClick={handleVerifyOtp}
+                        className="px-4 py-2 bg-[#C1123F] hover:bg-[#9E0E32] text-white text-xs font-bold rounded-xl shadow-xs disabled:opacity-50 cursor-pointer transition-all"
+                      >
+                        {isVerifyingOtp ? 'Verifying...' : 'Verify OTP'}
+                      </button>
+                    </div>
+
+                    {otpError && (
+                      <p className="text-[11px] text-[#C1123F] font-medium">{otpError}</p>
+                    )}
+                    <p className="text-[10px] text-slate-500">
+                      Standard SMS verification message dispatched. Valid for 10 minutes.
+                    </p>
+                  </motion.div>
+                )}
               </div>
             </div>
 

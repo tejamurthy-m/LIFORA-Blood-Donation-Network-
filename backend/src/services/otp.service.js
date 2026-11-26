@@ -15,6 +15,12 @@ const generateNumericOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
+const getPhoneKey = (phone) => {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  return digits.length >= 10 ? digits.slice(-10) : digits;
+};
+
 export const otpService = {
   // 1. Phone OTP: Generate and dispatch
   async sendPhoneOtp(phone) {
@@ -23,17 +29,23 @@ export const otpService = {
     }
 
     const cleanPhone = phone.trim();
+    const phoneKey = getPhoneKey(cleanPhone);
     const code = generateNumericOtp();
     const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes validity
 
-    otpStore.set(`phone:${cleanPhone}`, {
+    const entry = {
       code,
       expiresAt,
       attempts: 0,
       verified: false,
-    });
+    };
 
-    logger.info(`[PHONE_OTP] Generated OTP for ${cleanPhone}: ${code} (expires in 10m)`);
+    otpStore.set(`phone:${cleanPhone}`, entry);
+    if (phoneKey) {
+      otpStore.set(`phone:${phoneKey}`, entry);
+    }
+
+    logger.info(`[PHONE_OTP] Generated OTP for ${cleanPhone} (key: ${phoneKey}): ${code} (expires in 10m)`);
 
     return {
       success: true,
@@ -50,20 +62,22 @@ export const otpService = {
     }
 
     const cleanPhone = phone.trim();
-    const key = `phone:${cleanPhone}`;
-    const entry = otpStore.get(key);
+    const phoneKey = getPhoneKey(cleanPhone);
+    const entry = otpStore.get(`phone:${cleanPhone}`) || (phoneKey ? otpStore.get(`phone:${phoneKey}`) : null);
 
     if (!entry) {
       throw new ApiError(400, 'No active OTP found for this phone number. Please request a new code.', 'OTP_NOT_FOUND');
     }
 
     if (Date.now() > entry.expiresAt) {
-      otpStore.delete(key);
+      otpStore.delete(`phone:${cleanPhone}`);
+      if (phoneKey) otpStore.delete(`phone:${phoneKey}`);
       throw new ApiError(400, 'This OTP has expired. Please request a fresh code.', 'OTP_EXPIRED');
     }
 
     if (entry.attempts >= 5) {
-      otpStore.delete(key);
+      otpStore.delete(`phone:${cleanPhone}`);
+      if (phoneKey) otpStore.delete(`phone:${phoneKey}`);
       throw new ApiError(429, 'Too many invalid attempts. Please request a new OTP.', 'OTP_LOCKED');
     }
 
@@ -73,12 +87,20 @@ export const otpService = {
     }
 
     // OTP successfully verified
-    otpStore.delete(key);
+    otpStore.delete(`phone:${cleanPhone}`);
+    if (phoneKey) otpStore.delete(`phone:${phoneKey}`);
 
     // If a user account matches or user is logged in, mark phone verified
     const userToUpdate = currentUser?.id
       ? await prisma.user.findUnique({ where: { id: currentUser.id } })
-      : await prisma.user.findFirst({ where: { phone: cleanPhone } });
+      : await prisma.user.findFirst({
+          where: {
+            OR: [
+              { phone: cleanPhone },
+              ...(phoneKey ? [{ phone: { contains: phoneKey } }] : []),
+            ],
+          },
+        });
 
     if (userToUpdate) {
       await prisma.user.update({

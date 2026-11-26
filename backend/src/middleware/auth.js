@@ -112,7 +112,29 @@ export const optionalAuthenticate = async (req, res, next) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return next();
     }
-    return authenticate(req, res, next);
+    const token = authHeader.split(' ')[1];
+    if (!token) return next();
+
+    try {
+      const decoded = verifyAccessToken(token);
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        include: {
+          donorProfile: true,
+          recipientProfile: true,
+          staffProfile: {
+            include: { hospital: true },
+          },
+        },
+      });
+      if (user && user.isActive) {
+        req.user = user;
+      }
+    } catch {
+      // Ignore invalid or expired token on optional-auth endpoints
+      req.user = null;
+    }
+    return next();
   } catch {
     return next();
   }

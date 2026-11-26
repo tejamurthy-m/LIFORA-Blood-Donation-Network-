@@ -28,6 +28,8 @@ export const formatUserResponse = (user) => {
     area: user.area || '',
     avatar: user.avatarUrl || '',
     isActive: user.isActive,
+    isPhoneVerified: Boolean(user.isPhoneVerified),
+    isEmailVerified: Boolean(user.isEmailVerified),
     createdAt: user.createdAt,
   };
 
@@ -165,6 +167,7 @@ export const authService = {
           role: roleUpper,
           city: city.trim(),
           area: area ? area.trim() : null,
+          isPhoneVerified: Boolean(payload.isPhoneVerified),
         },
       });
 

@@ -57,9 +57,12 @@ export const authService = {
           city: user.city || 'Mumbai',
           area: user.area || 'Central',
           isAvailable: user.isAvailable ?? true,
-          totalDonations: user.totalDonations || 0,
+          totalDonations: user.totalDonations ?? 0,
           profileCompletion: user.profileCompletion || 90,
           badge: user.badge || 'Active Member',
+          isPhoneVerified: Boolean(user.isPhoneVerified),
+          isEmailVerified: Boolean(user.isEmailVerified),
+          verificationStatus: user.verificationStatus || 'PENDING',
           staffRole: user.staffRole ? user.staffRole.toLowerCase() : undefined,
           hospitalId: user.hospitalId,
           hospitalName: user.hospitalName,
@@ -112,6 +115,11 @@ export const authService = {
         bloodGroup: registrationData.bloodGroup || 'O+',
         city: registrationData.city || 'Mumbai',
         area: registrationData.area || 'Central',
+        isPhoneVerified: Boolean(registrationData.isPhoneVerified),
+        licenseNumber: registrationData.licenseNumber,
+        bedCapacity: registrationData.bedCapacity,
+        headName: registrationData.headName,
+        headQualification: registrationData.headQualification,
       });
 
       if (res.data?.success && res.data.data?.token) {
@@ -126,9 +134,16 @@ export const authService = {
           city: user.city || 'Mumbai',
           area: user.area || 'Central',
           isAvailable: user.isAvailable ?? true,
-          totalDonations: user.totalDonations || 0,
+          totalDonations: user.totalDonations ?? 0,
           profileCompletion: user.profileCompletion || 85,
           badge: user.badge || 'New Member',
+          isPhoneVerified: Boolean(user.isPhoneVerified || registrationData.isPhoneVerified),
+          isEmailVerified: Boolean(user.isEmailVerified),
+          verificationStatus: user.verificationStatus || 'PENDING',
+          staffRole: user.staffRole ? user.staffRole.toLowerCase() : undefined,
+          hospitalId: user.hospitalId,
+          hospitalName: user.hospitalName,
+          hospitalVerificationStatus: user.hospitalVerificationStatus,
         };
 
         localStorage.setItem(TOKEN_STORAGE_KEY, token);
@@ -168,6 +183,7 @@ export const authService = {
       totalDonations: 0,
       profileCompletion: 80,
       badge: 'New Member',
+      isPhoneVerified: Boolean(registrationData.isPhoneVerified),
       createdAt: new Date().toISOString(),
     };
 

@@ -38,6 +38,7 @@ export const registerSchema = z.object({
   role: z.enum(['donor', 'recipient', 'hospital']),
   city: z.string().min(2, 'City is required.'),
   area: z.string().optional(),
+  isPhoneVerified: z.boolean().optional(),
 
   // Role-specific fields
   bloodGroup: BloodGroupEnum.optional(),
