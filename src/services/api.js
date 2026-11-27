@@ -7,8 +7,9 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
-  timeout: 2500,
+  timeout: 15000,
 });
 
 // Request interceptor to attach JWT token if present
