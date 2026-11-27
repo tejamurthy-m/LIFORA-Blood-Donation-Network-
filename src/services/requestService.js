@@ -5,19 +5,76 @@ const REQUESTS_STORAGE_KEY = 'lifora_blood_requests_data';
 
 export const getStoredRequests = () => {
   const stored = localStorage.getItem(REQUESTS_STORAGE_KEY);
+  let parsed;
   if (!stored) {
-    localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(INITIAL_REQUESTS));
-    return INITIAL_REQUESTS;
+    parsed = [...INITIAL_REQUESTS];
+  } else {
+    try {
+      parsed = JSON.parse(stored);
+    } catch {
+      parsed = [...INITIAL_REQUESTS];
+    }
   }
-  try {
-    return JSON.parse(stored);
-  } catch {
-    return INITIAL_REQUESTS;
+
+  // Auto-reconcile request timeline and status for any previously stored requests
+  let changed = false;
+  const reconciled = parsed.map((r) => {
+    const responsesCount = r.donorResponses || (Array.isArray(r.acceptedDonors) ? r.acceptedDonors.length : 0) || 0;
+    const isInProgress = r.status === 'In Progress' || responsesCount > 0;
+    const isFulfilled = r.status === 'Fulfilled' || r.status === 'Completed';
+
+    let timeline = r.timeline;
+    if (!timeline || !Array.isArray(timeline) || timeline.length === 0) {
+      timeline = [
+        { step: 1, title: 'Request Submitted', time: 'Just now', done: true },
+        { step: 2, title: 'Donors Notified', time: 'Active', done: true, detail: 'Broadcasting to nearby verified donors' },
+        { step: 3, title: 'Donor Responses Received', time: 'Awaiting', done: false, detail: 'Collecting confirmations' },
+        { step: 4, title: 'Hospital Coordination', time: 'Pending', done: false, detail: 'Clinical blood bank cross-matching' },
+      ];
+      changed = true;
+    }
+
+    const updatedTimeline = timeline.map((step) => {
+      if (step.step === 3 || step.title?.includes('Donor Response')) {
+        const stepDone = isInProgress || responsesCount > 0 || step.done;
+        const detail = responsesCount > 0
+          ? `${responsesCount} donor(s) accepted and dispatched to donation center`
+          : (stepDone ? '1 donor(s) accepted and dispatched to donation center' : (step.detail || 'Collecting confirmations'));
+        const time = responsesCount > 0 ? `${responsesCount} Donors Responded` : (stepDone ? '1 Donors Responded' : step.time);
+
+        if (step.done !== stepDone || step.detail !== detail) {
+          changed = true;
+          return { ...step, done: stepDone, detail, time };
+        }
+      }
+      if (step.step === 4 || step.title?.includes('Hospital') || step.title?.includes('Fulfillment')) {
+        if (isFulfilled && !step.done) {
+          changed = true;
+          return { ...step, done: true, time: 'Completed', detail: 'Fulfillment & Transfusion Clearance complete' };
+        }
+      }
+      return step;
+    });
+
+    return {
+      ...r,
+      donorResponses: Math.max(r.donorResponses || 0, responsesCount),
+      status: isFulfilled ? r.status : (isInProgress ? 'In Progress' : r.status),
+      timeline: updatedTimeline,
+    };
+  });
+
+  if (changed || !stored) {
+    localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(reconciled));
   }
+  return reconciled;
 };
 
 export const saveStoredRequests = (requests) => {
   localStorage.setItem(REQUESTS_STORAGE_KEY, JSON.stringify(requests));
+  try {
+    window.dispatchEvent(new CustomEvent('lifora:request_updated', { detail: { requests } }));
+  } catch {}
 };
 
 export const requestService = {
@@ -181,15 +238,38 @@ export const requestService = {
 
     const updated = list.map((r) => {
       if (r.id === requestId || r.trackingId === requestId) {
-        const donors = r.acceptedDonors || [];
+        const donors = [...(r.acceptedDonors || [])];
         if (!donors.includes(donorName)) {
           donors.push(donorName);
         }
+        const donorCount = donors.length;
+        const currentTimeline = Array.isArray(r.timeline) && r.timeline.length > 0
+          ? r.timeline
+          : [
+              { step: 1, title: 'Request Submitted', time: 'Just now', done: true },
+              { step: 2, title: 'Donors Notified', time: 'Active', done: true, detail: 'Broadcasting to nearby verified donors' },
+              { step: 3, title: 'Donor Responses Received', time: 'Awaiting', done: false, detail: 'Collecting confirmations' },
+              { step: 4, title: 'Hospital Coordination', time: 'Pending', done: false, detail: 'Clinical blood bank cross-matching' },
+            ];
+
+        const updatedTimeline = currentTimeline.map((step) => {
+          if (step.step === 3 || step.title?.includes('Donor Response')) {
+            return {
+              ...step,
+              done: true,
+              time: `${donorCount} Donors Responded`,
+              detail: `${donorCount} donor(s) accepted and dispatched to donation center`,
+            };
+          }
+          return step;
+        });
+
         target = {
           ...r,
           status: 'In Progress',
-          donorResponses: donors.length,
+          donorResponses: donorCount,
           acceptedDonors: donors,
+          timeline: updatedTimeline,
         };
         return target;
       }
@@ -197,6 +277,9 @@ export const requestService = {
     });
 
     saveStoredRequests(updated);
+    try {
+      window.dispatchEvent(new CustomEvent('lifora:request_updated', { detail: { requestId, updated: target } }));
+    } catch {}
     return target;
   },
 
@@ -213,13 +296,33 @@ export const requestService = {
 
     await simulatedDelay(200);
     const list = getStoredRequests();
+    let target = null;
+    const isFulfilled = newStatus === 'Fulfilled' || newStatus === 'Completed';
+
     const updated = list.map((r) => {
       if (r.id === requestId || r.trackingId === requestId) {
-        return { ...r, status: newStatus };
+        const currentTimeline = r.timeline || [];
+        const updatedTimeline = currentTimeline.map((step) => {
+          if ((step.step === 4 || step.title?.includes('Hospital') || step.title?.includes('Fulfillment')) && isFulfilled) {
+            return {
+              ...step,
+              done: true,
+              time: 'Completed',
+              detail: 'Fulfillment & Transfusion Clearance complete',
+            };
+          }
+          return step;
+        });
+
+        target = { ...r, status: newStatus, timeline: updatedTimeline };
+        return target;
       }
       return r;
     });
     saveStoredRequests(updated);
+    try {
+      window.dispatchEvent(new CustomEvent('lifora:request_updated', { detail: { requestId, updated: target } }));
+    } catch {}
     return true;
   },
 };

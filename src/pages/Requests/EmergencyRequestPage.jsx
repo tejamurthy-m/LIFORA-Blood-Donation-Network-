@@ -16,12 +16,14 @@ import {
 import { requestService } from '../../services/requestService';
 import { notificationService } from '../../services/notificationService';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
 
 export default function EmergencyRequestPage() {
   const { addToast } = useToast();
+  const { user } = useAuth();
 
   const [bloodGroup, setBloodGroup] = useState('O+');
   const [hospitalName, setHospitalName] = useState('Lilavati Hospital, Mumbai');
@@ -40,18 +42,27 @@ export default function EmergencyRequestPage() {
     setIsSubmitting(true);
 
     try {
+      const detectedCity =
+        location?.toLowerCase().includes('bangalore') ||
+        location?.toLowerCase().includes('bengaluru') ||
+        hospitalName?.toLowerCase().includes('bangalore') ||
+        hospitalName?.toLowerCase().includes('bengaluru')
+          ? 'Bangalore'
+          : user?.city || 'Mumbai';
+
       const result = await requestService.createRequest({
         patientName: 'Critical Emergency Patient',
         bloodGroup,
         unitsRequired: units,
         hospitalName,
         hospitalLocation: location,
-        city: 'Mumbai',
+        city: detectedCity,
         requiredDate: 'IMMEDIATE',
         urgency: 'Emergency',
         contactPerson: contactName,
         contactPhone,
         additionalInstructions: 'CRITICAL PRIORITY: Bypass surgical team requesting cross-matched blood reserve.',
+        requesterId: user?.id || 'user_recipient_1',
       });
 
       setActiveEmergency(result);

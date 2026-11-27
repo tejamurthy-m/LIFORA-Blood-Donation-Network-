@@ -174,22 +174,36 @@ export default function CreateRequestPage() {
 
           {/* 4-Step Tracker Preview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-left pt-4">
-            {createdRequest.timeline?.map((step) => (
-              <div
-                key={step.step}
-                className={`p-3 rounded-xl border text-xs ${
-                  step.done
-                    ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900 font-semibold'
-                    : 'bg-slate-50 border-slate-200 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span>Stage 0{step.step}</span>
-                  {step.done ? <CheckCircle2 className="w-3.5 h-3.5 text-[#16A36A]" /> : <Clock className="w-3.5 h-3.5 text-slate-300" />}
+            {createdRequest.timeline?.map((step) => {
+              const isStepDone =
+                step.done ||
+                step.step === 1 ||
+                step.step === 2 ||
+                (step.step === 3 &&
+                  ((createdRequest.donorResponses || 0) > 0 ||
+                    (createdRequest.acceptedDonors && createdRequest.acceptedDonors.length > 0) ||
+                    createdRequest.status === 'In Progress' ||
+                    createdRequest.status === 'Fulfilled')) ||
+                (step.step === 4 &&
+                  (createdRequest.status === 'Fulfilled' || createdRequest.status === 'Completed'));
+
+              return (
+                <div
+                  key={step.step}
+                  className={`p-3 rounded-xl border text-xs ${
+                    isStepDone
+                      ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900 font-semibold'
+                      : 'bg-slate-50 border-slate-200 text-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span>Stage 0{step.step}</span>
+                    {isStepDone ? <CheckCircle2 className="w-3.5 h-3.5 text-[#16A36A]" /> : <Clock className="w-3.5 h-3.5 text-slate-300" />}
+                  </div>
+                  <div className="font-bold text-xs">{step.title}</div>
                 </div>
-                <div className="font-bold text-xs">{step.title}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Medical Notice */}

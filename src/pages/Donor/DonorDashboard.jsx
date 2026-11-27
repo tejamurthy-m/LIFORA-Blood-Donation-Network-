@@ -54,19 +54,36 @@ export default function DonorDashboard() {
   const isRequestsView = location.pathname.includes('/donor/requests');
   const isHistoryView = location.pathname.includes('/donor/history');
 
-  // Load active blood requests
+  // Load active blood requests with real-time sync
   useEffect(() => {
     let isMounted = true;
-    requestService
-      .getRequests()
-      .then((data) => {
-        if (isMounted) {
-          setRequests(data);
-        }
-      })
-      .catch(() => {});
+    const fetchRequests = () => {
+      requestService
+        .getRequests()
+        .then((data) => {
+          if (isMounted) {
+            setRequests(data);
+          }
+        })
+        .catch(() => {});
+    };
+
+    fetchRequests();
+    const intervalId = setInterval(fetchRequests, 3000);
+
+    const handleStorageChange = (e) => {
+      if (!e.key || e.key === 'lifora_blood_requests_data') {
+        fetchRequests();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('lifora:request_updated', fetchRequests);
+
     return () => {
       isMounted = false;
+      clearInterval(intervalId);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lifora:request_updated', fetchRequests);
     };
   }, []);
 
@@ -135,17 +152,19 @@ export default function DonorDashboard() {
         metadata: { requestId, hospitalName: targetReq?.hospitalName },
       });
 
-      // Add recipient/requester notification if applicable
-      if (targetReq?.requesterId) {
-        await notificationService.addNotification({
-          userId: targetReq.requesterId,
-          type: 'response',
-          rawType: 'DONOR_RESPONSE',
-          title: 'Donor En Route! 🩸',
-          message: `${donorName} has accepted your blood requisition for ${targetReq.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
-          metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
-        });
-      }
+      // Add recipient/requester notification to ensure recipient is immediately alerted
+      const targetRequesterId = targetReq?.requesterId && targetReq.requesterId !== 'user_guest'
+        ? targetReq.requesterId
+        : 'user_recipient_1';
+
+      await notificationService.addNotification({
+        userId: targetRequesterId,
+        type: 'response',
+        rawType: 'DONOR_RESPONSE',
+        title: 'Donor En Route! 🩸',
+        message: `${donorName} has accepted your blood requisition for ${targetReq?.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
+        metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
+      });
 
       setRequests((prev) =>
         prev.map((r) =>
@@ -179,17 +198,19 @@ export default function DonorDashboard() {
         metadata: { requestId, hospitalName: targetReq?.hospitalName },
       });
 
-      // Add recipient/requester notification if applicable
-      if (targetReq?.requesterId) {
-        await notificationService.addNotification({
-          userId: targetReq.requesterId,
-          type: 'response',
-          rawType: 'DONOR_RESPONSE',
-          title: 'Donor En Route! 🩸',
-          message: `${donorName} has accepted your blood requisition for ${targetReq.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
-          metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
-        });
-      }
+      // Add recipient/requester notification to ensure recipient is immediately alerted
+      const targetRequesterId = targetReq?.requesterId && targetReq.requesterId !== 'user_guest'
+        ? targetReq.requesterId
+        : 'user_recipient_1';
+
+      await notificationService.addNotification({
+        userId: targetRequesterId,
+        type: 'response',
+        rawType: 'DONOR_RESPONSE',
+        title: 'Donor En Route! 🩸',
+        message: `${donorName} has accepted your blood requisition for ${targetReq?.hospitalName || 'hospital'} and is arriving in ~20 minutes.`,
+        metadata: { requestId, donorName, hospitalName: targetReq?.hospitalName },
+      });
 
       setRequests((prev) =>
         prev.map((r) =>

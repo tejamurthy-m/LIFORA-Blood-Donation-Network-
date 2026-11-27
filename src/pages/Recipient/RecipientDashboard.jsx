@@ -47,12 +47,17 @@ export default function RecipientDashboard() {
 
   useEffect(() => {
     let isMounted = true;
-    requestService.getRequests().then((data) => {
-      if (isMounted) {
-        setRequests(data);
-        setLoading(false);
-      }
-    });
+
+    const fetchRequests = () => {
+      requestService.getRequests().then((data) => {
+        if (isMounted) {
+          setRequests(data);
+          setLoading(false);
+        }
+      });
+    };
+
+    fetchRequests();
 
     const userCity = user?.city || 'Bangalore';
     donorService.getDonors({ city: userCity, onlyAvailable: true, sortBy: 'distance' }).then((donors) => {
@@ -61,8 +66,21 @@ export default function RecipientDashboard() {
       }
     });
 
+    const pollInterval = setInterval(fetchRequests, 2500);
+
+    const handleStorageChange = (e) => {
+      if (!e.key || e.key === 'lifora_blood_requests_data') {
+        fetchRequests();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('lifora:request_updated', fetchRequests);
+
     return () => {
       isMounted = false;
+      clearInterval(pollInterval);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('lifora:request_updated', fetchRequests);
     };
   }, [user?.city]);
 
@@ -159,21 +177,46 @@ export default function RecipientDashboard() {
 
                 {/* 4 Stage Tracker */}
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2">
-                  {req.timeline?.map((step) => (
-                    <div
-                      key={step.step}
-                      className={`p-3 rounded-xl border text-xs ${
-                        step.done ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-white border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-[10px] uppercase">Stage 0{step.step}</span>
-                        {step.done ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : <Clock className="w-3.5 h-3.5" />}
+                  {req.timeline?.map((step) => {
+                    const isStepDone =
+                      step.done ||
+                      step.step === 1 ||
+                      step.step === 2 ||
+                      (step.step === 3 &&
+                        ((req.donorResponses || 0) > 0 ||
+                          (req.acceptedDonors && req.acceptedDonors.length > 0) ||
+                          req.status === 'In Progress' ||
+                          req.status === 'Fulfilled')) ||
+                      (step.step === 4 &&
+                        (req.status === 'Fulfilled' || req.status === 'Completed'));
+
+                    const stepDetail =
+                      step.step === 3 && isStepDone && (!step.detail || step.detail === 'Collecting confirmations' || step.detail === 'Awaiting initial donor confirmations')
+                        ? `${req.donorResponses || (req.acceptedDonors ? req.acceptedDonors.length : 1)} donor(s) accepted and dispatched to donation center`
+                        : step.detail;
+
+                    return (
+                      <div
+                        key={step.step}
+                        className={`p-3 rounded-xl border text-xs ${
+                          isStepDone
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                            : 'bg-white border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-[10px] uppercase">Stage 0{step.step}</span>
+                          {isStepDone ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <Clock className="w-3.5 h-3.5 text-slate-300" />
+                          )}
+                        </div>
+                        <p className="font-bold text-xs">{step.title}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{stepDetail}</p>
                       </div>
-                      <p className="font-bold text-xs">{step.title}</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5">{step.detail}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -272,31 +315,50 @@ export default function RecipientDashboard() {
               {/* 4-Stage Tracker */}
               <div className="pt-3 border-t border-slate-100">
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  {req.timeline?.map((step) => (
-                    <div
-                      key={step.step}
-                      className={`p-3 rounded-2xl border text-xs transition-all ${
-                        step.done
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                          : 'bg-slate-50 border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-[11px]">Stage 0{step.step}</span>
-                        {step.done ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#16A36A]" />
-                        ) : (
-                          <Clock className="w-4 h-4 text-slate-300" />
+                  {req.timeline?.map((step) => {
+                    const isStepDone =
+                      step.done ||
+                      step.step === 1 ||
+                      step.step === 2 ||
+                      (step.step === 3 &&
+                        ((req.donorResponses || 0) > 0 ||
+                          (req.acceptedDonors && req.acceptedDonors.length > 0) ||
+                          req.status === 'In Progress' ||
+                          req.status === 'Fulfilled')) ||
+                      (step.step === 4 &&
+                        (req.status === 'Fulfilled' || req.status === 'Completed'));
+
+                    const stepDetail =
+                      step.step === 3 && isStepDone && (!step.detail || step.detail === 'Collecting confirmations' || step.detail === 'Awaiting initial donor confirmations')
+                        ? `${req.donorResponses || (req.acceptedDonors ? req.acceptedDonors.length : 1)} donor(s) accepted and dispatched to donation center`
+                        : step.detail;
+
+                    return (
+                      <div
+                        key={step.step}
+                        className={`p-3 rounded-2xl border text-xs transition-all ${
+                          isStepDone
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                            : 'bg-slate-50 border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-[11px]">Stage 0{step.step}</span>
+                          {isStepDone ? (
+                            <CheckCircle2 className="w-4 h-4 text-[#16A36A]" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="font-bold text-xs">{step.title}</div>
+                        {stepDetail && (
+                          <div className="text-[10px] mt-1 text-slate-500 leading-tight">
+                            {stepDetail}
+                          </div>
                         )}
                       </div>
-                      <div className="font-bold text-xs">{step.title}</div>
-                      {step.detail && (
-                        <div className="text-[10px] mt-1 text-slate-500 leading-tight">
-                          {step.detail}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -549,31 +611,50 @@ export default function RecipientDashboard() {
                   Live Dispatch Stages:
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  {req.timeline?.map((step) => (
-                    <div
-                      key={step.step}
-                      className={`p-3 rounded-xl border text-xs transition-colors ${
-                        step.done
-                          ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                          : 'bg-white border-slate-200 text-slate-400'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-bold text-[11px]">Stage 0{step.step}</span>
-                        {step.done ? (
-                          <CheckCircle2 className="w-4 h-4 text-[#16A36A]" />
-                        ) : (
-                          <Clock className="w-4 h-4 text-slate-300" />
+                  {req.timeline?.map((step) => {
+                    const isStepDone =
+                      step.done ||
+                      step.step === 1 ||
+                      step.step === 2 ||
+                      (step.step === 3 &&
+                        ((req.donorResponses || 0) > 0 ||
+                          (req.acceptedDonors && req.acceptedDonors.length > 0) ||
+                          req.status === 'In Progress' ||
+                          req.status === 'Fulfilled')) ||
+                      (step.step === 4 &&
+                        (req.status === 'Fulfilled' || req.status === 'Completed'));
+
+                    const stepDetail =
+                      step.step === 3 && isStepDone && (!step.detail || step.detail === 'Collecting confirmations' || step.detail === 'Awaiting initial donor confirmations')
+                        ? `${req.donorResponses || (req.acceptedDonors ? req.acceptedDonors.length : 1)} donor(s) accepted and dispatched to donation center`
+                        : step.detail;
+
+                    return (
+                      <div
+                        key={step.step}
+                        className={`p-3 rounded-xl border text-xs transition-colors ${
+                          isStepDone
+                            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                            : 'bg-white border-slate-200 text-slate-400'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-[11px]">Stage 0{step.step}</span>
+                          {isStepDone ? (
+                            <CheckCircle2 className="w-4 h-4 text-[#16A36A]" />
+                          ) : (
+                            <Clock className="w-4 h-4 text-slate-300" />
+                          )}
+                        </div>
+                        <div className="font-bold text-xs">{step.title}</div>
+                        {stepDetail && (
+                          <div className="text-[10px] mt-1 text-slate-500 leading-tight">
+                            {stepDetail}
+                          </div>
                         )}
                       </div>
-                      <div className="font-bold text-xs">{step.title}</div>
-                      {step.detail && (
-                        <div className="text-[10px] mt-1 text-slate-500 leading-tight">
-                          {step.detail}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
